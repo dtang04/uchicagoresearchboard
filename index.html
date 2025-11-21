@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Discover research internship opportunities at the University of Chicago across Statistics, Mathematics, Computer Science, Data Science, and Economics departments.">
+    <title>UChicago Research Internship Board</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>UChicago Research Internship Board</h1>
+            <p class="subtitle">Find research opportunities across departments</p>
+        </header>
+
+        <div class="search-section">
+            <div class="search-container">
+                <input 
+                    type="text" 
+                    id="departmentSearch" 
+                    class="search-input" 
+                    placeholder="Search for a department (e.g., Statistics, Mathematics, Computer Science...)"
+                    autocomplete="off"
+                >
+                <button id="searchButton" class="search-button">Search</button>
+            </div>
+            <div class="quick-filters">
+                <button class="filter-btn" data-dept="statistics">Statistics</button>
+                <button class="filter-btn" data-dept="mathematics">Mathematics</button>
+                <button class="filter-btn" data-dept="computer science">Computer Science</button>
+                <button class="filter-btn" data-dept="data science">Data Science</button>
+                <button class="filter-btn" data-dept="economics">Economics</button>
+            </div>
+        </div>
+
+        <div id="resultsContainer" class="results-container">
+            <div class="welcome-message">
+                <p>👋 Welcome! Search for a department to discover research opportunities and connect with leading researchers at the University of Chicago.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="api-service.js"></script>
+    <script src="trending-labs.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
+
