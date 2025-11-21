@@ -10,8 +10,13 @@
 <body>
     <div class="container">
         <header>
-            <h1>UChicago Research Internship Board</h1>
-            <p class="subtitle">Find research opportunities across departments</p>
+            <div class="header-content">
+                <div>
+                    <h1>UChicago Research Internship Board</h1>
+                    <p class="subtitle">Find research opportunities across departments</p>
+                </div>
+                <button id="loginButton" class="login-button">Login</button>
+            </div>
         </header>
 
         <div class="search-section">
@@ -32,6 +37,9 @@
                 <button class="filter-btn" data-dept="data science">Data Science</button>
                 <button class="filter-btn" data-dept="economics">Economics</button>
             </div>
+            <div class="starred-tab-container" id="starredTabContainer" style="display: none;">
+                <button id="starredTab" class="starred-tab">⭐ Starred Professors</button>
+            </div>
         </div>
 
         <div id="resultsContainer" class="results-container">
@@ -41,9 +49,67 @@
         </div>
     </div>
 
+    <!-- Login/Signup Modal -->
+    <div id="authModal" class="auth-modal" style="display: none;">
+        <div class="auth-modal-content">
+            <span class="auth-modal-close">&times;</span>
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">Login</button>
+                <button class="auth-tab" data-tab="signup">Sign Up</button>
+            </div>
+            
+            <div id="loginForm" class="auth-form">
+                <h2>Login</h2>
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                <button id="loginSubmit" class="auth-submit-button">Login</button>
+                <div class="auth-divider">
+                    <span>or</span>
+                </div>
+                <button id="googleLogin" class="google-button">
+                    <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.96-2.184l-2.908-2.258c-.806.54-1.837.86-3.052.86-2.347 0-4.33-1.584-5.04-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.96 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.951H.957C.348 6.174 0 7.55 0 9s.348 2.826.957 4.049l3.003-2.342z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.951L3.96 7.293C4.67 5.163 6.653 3.58 9 3.58z"/></svg>
+                    Sign in with Google
+                </button>
+                <div id="loginError" class="auth-error"></div>
+            </div>
+            
+            <div id="signupForm" class="auth-form" style="display: none;">
+                <h2>Sign Up</h2>
+                <div class="form-group">
+                    <label for="signupName">Name (optional)</label>
+                    <input type="text" id="signupName">
+                </div>
+                <div class="form-group">
+                    <label for="signupEmail">Email</label>
+                    <input type="email" id="signupEmail" required>
+                </div>
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <input type="password" id="signupPassword" required>
+                </div>
+                <button id="signupSubmit" class="auth-submit-button">Sign Up</button>
+                <div class="auth-divider">
+                    <span>or</span>
+                </div>
+                <button id="googleSignup" class="google-button">
+                    <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.96-2.184l-2.908-2.258c-.806.54-1.837.86-3.052.86-2.347 0-4.33-1.584-5.04-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.96 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.951H.957C.348 6.174 0 7.55 0 9s.348 2.826.957 4.049l3.003-2.342z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.951L3.96 7.293C4.67 5.163 6.653 3.58 9 3.58z"/></svg>
+                    Sign up with Google
+                </button>
+                <div id="signupError" class="auth-error"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="config.js"></script>
     <script src="api-service.js"></script>
     <script src="trending-labs.js"></script>
+    <script src="auth.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

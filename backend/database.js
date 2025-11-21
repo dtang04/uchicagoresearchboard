@@ -49,6 +49,9 @@ function createTables() {
                     lab_website TEXT,
                     email TEXT,
                     research_area TEXT,
+                    num_undergrad_researchers INTEGER,
+                    num_lab_members INTEGER,
+                    num_published_papers INTEGER,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     FOREIGN KEY (department_id) REFERENCES departments(id)
                 )
@@ -101,15 +104,55 @@ function createTables() {
                     user_agent TEXT,
                     FOREIGN KEY (department_id) REFERENCES departments(id)
                 )
+            `);
+
+            // Users table
+            db.run(`
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT,
+                    name TEXT,
+                    google_id TEXT UNIQUE,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+
+            // Starred professors table
+            db.run(`
+                CREATE TABLE IF NOT EXISTS starred_professors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    professor_id INTEGER NOT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users(id),
+                    FOREIGN KEY (professor_id) REFERENCES professors(id),
+                    UNIQUE(user_id, professor_id)
+                )
             `, (err) => {
                 if (err) reject(err);
                 else {
-                    // Create indexes
-                    db.run(`CREATE INDEX IF NOT EXISTS idx_professors_department ON professors(department_id)`, () => {
-                        db.run(`CREATE INDEX IF NOT EXISTS idx_views_professor ON professor_views(professor_id)`, () => {
-                            db.run(`CREATE INDEX IF NOT EXISTS idx_clicks_professor ON professor_clicks(professor_id)`, () => {
-                                db.run(`CREATE INDEX IF NOT EXISTS idx_views_department ON department_views(department_id)`, () => {
-                                    resolve();
+                    // Add new columns to professors table if they don't exist (migration)
+                    // SQLite doesn't support IF NOT EXISTS for ALTER TABLE, so we'll try and ignore errors
+                    db.run(`ALTER TABLE professors ADD COLUMN num_undergrad_researchers INTEGER`, (err1) => {
+                        // Ignore error if column already exists
+                        db.run(`ALTER TABLE professors ADD COLUMN num_lab_members INTEGER`, (err2) => {
+                            // Ignore error if column already exists
+                            db.run(`ALTER TABLE professors ADD COLUMN num_published_papers INTEGER`, (err3) => {
+                                // Ignore error if column already exists
+                                // Create indexes
+                                db.run(`CREATE INDEX IF NOT EXISTS idx_professors_department ON professors(department_id)`, () => {
+                                    db.run(`CREATE INDEX IF NOT EXISTS idx_views_professor ON professor_views(professor_id)`, () => {
+                                        db.run(`CREATE INDEX IF NOT EXISTS idx_clicks_professor ON professor_clicks(professor_id)`, () => {
+                                            db.run(`CREATE INDEX IF NOT EXISTS idx_views_department ON department_views(department_id)`, () => {
+                                                db.run(`CREATE INDEX IF NOT EXISTS idx_starred_user ON starred_professors(user_id)`, () => {
+                                                    db.run(`CREATE INDEX IF NOT EXISTS idx_starred_professor ON starred_professors(professor_id)`, () => {
+                                                        resolve();
+                                                    });
+                                                });
+                                            });
+                                        });
+                                    });
                                 });
                             });
                         });
@@ -197,7 +240,10 @@ function getProfessorsByDepartment(departmentName) {
                         lab: prof.lab,
                         labWebsite: prof.lab_website,
                         email: prof.email,
-                        researchArea: prof.research_area
+                        researchArea: prof.research_area,
+                        numUndergradResearchers: prof.num_undergrad_researchers,
+                        numLabMembers: prof.num_lab_members,
+                        numPublishedPapers: prof.num_published_papers
                     }));
                     resolve(results);
                 }
@@ -215,8 +261,8 @@ async function addProfessor(departmentName, professor) {
     return new Promise((resolve, reject) => {
         db.run(`
             INSERT INTO professors 
-            (department_id, name, title, lab, lab_website, email, research_area)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (department_id, name, title, lab, lab_website, email, research_area, num_undergrad_researchers, num_lab_members, num_published_papers)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             dept.id,
             professor.name,
@@ -224,7 +270,10 @@ async function addProfessor(departmentName, professor) {
             professor.lab || null,
             professor.labWebsite || null,
             professor.email || null,
-            professor.researchArea || null
+            professor.researchArea || null,
+            professor.numUndergradResearchers || null,
+            professor.numLabMembers || null,
+            professor.numPublishedPapers || null
         ], function(err) {
             if (err) reject(err);
             else resolve(this.lastID);
@@ -476,6 +525,202 @@ function getAllAnalytics() {
     });
 }
 
+/**
+ * Update professor stats
+ */
+async function updateProfessorStats(professorName, departmentName, stats) {
+    const prof = await getProfessorByNameAndDepartment(professorName, departmentName);
+    if (!prof) {
+        throw new Error('Professor not found');
+    }
+    
+    return new Promise((resolve, reject) => {
+        db.run(`
+            UPDATE professors 
+            SET num_undergrad_researchers = ?,
+                num_lab_members = ?,
+                num_published_papers = ?
+            WHERE id = ?
+        `, [
+            stats.numUndergradResearchers || null,
+            stats.numLabMembers || null,
+            stats.numPublishedPapers || null,
+            prof.id
+        ], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes);
+        });
+    });
+}
+
+/**
+ * User management functions
+ */
+
+// Create or get user by email
+function getUserByEmail(email) {
+    return new Promise((resolve, reject) => {
+        db.get('SELECT * FROM users WHERE email = ?', [email], (err, row) => {
+            if (err) reject(err);
+            else resolve(row || null);
+        });
+    });
+}
+
+// Create user
+function createUser(email, passwordHash, name, googleId = null) {
+    return new Promise((resolve, reject) => {
+        db.run(`
+            INSERT INTO users (email, password_hash, name, google_id)
+            VALUES (?, ?, ?, ?)
+        `, [email, passwordHash, name, googleId], function(err) {
+            if (err) reject(err);
+            else resolve(this.lastID);
+        });
+    });
+}
+
+// Get user by ID
+function getUserById(userId) {
+    return new Promise((resolve, reject) => {
+        db.get('SELECT id, email, name, google_id, created_at FROM users WHERE id = ?', [userId], (err, row) => {
+            if (err) reject(err);
+            else resolve(row || null);
+        });
+    });
+}
+
+// Get user by Google ID
+function getUserByGoogleId(googleId) {
+    return new Promise((resolve, reject) => {
+        db.get('SELECT * FROM users WHERE google_id = ?', [googleId], (err, row) => {
+            if (err) reject(err);
+            else resolve(row || null);
+        });
+    });
+}
+
+/**
+ * Starred professors functions
+ */
+
+// Get starred professors for a user
+function getStarredProfessors(userId) {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT 
+                p.id,
+                p.name,
+                p.title,
+                p.lab,
+                p.lab_website,
+                p.email,
+                p.research_area,
+                p.num_undergrad_researchers,
+                p.num_lab_members,
+                p.num_published_papers,
+                d.name as department
+            FROM starred_professors sp
+            JOIN professors p ON sp.professor_id = p.id
+            JOIN departments d ON p.department_id = d.id
+            WHERE sp.user_id = ?
+            ORDER BY sp.created_at DESC
+        `, [userId], (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                const results = rows.map(prof => ({
+                    name: prof.name,
+                    title: prof.title,
+                    lab: prof.lab,
+                    labWebsite: prof.lab_website,
+                    email: prof.email,
+                    researchArea: prof.research_area,
+                    numUndergradResearchers: prof.num_undergrad_researchers,
+                    numLabMembers: prof.num_lab_members,
+                    numPublishedPapers: prof.num_published_papers,
+                    department: prof.department
+                }));
+                resolve(results);
+            }
+        });
+    });
+}
+
+// Check if professor is starred by user
+function isProfessorStarred(userId, professorId) {
+    return new Promise((resolve, reject) => {
+        db.get(`
+            SELECT id FROM starred_professors 
+            WHERE user_id = ? AND professor_id = ?
+        `, [userId, professorId], (err, row) => {
+            if (err) reject(err);
+            else resolve(!!row);
+        });
+    });
+}
+
+// Star a professor
+async function starProfessor(userId, professorName, departmentName) {
+    const prof = await getProfessorByNameAndDepartment(professorName, departmentName);
+    if (!prof) {
+        throw new Error('Professor not found');
+    }
+    
+    return new Promise((resolve, reject) => {
+        db.run(`
+            INSERT OR IGNORE INTO starred_professors (user_id, professor_id)
+            VALUES (?, ?)
+        `, [userId, prof.id], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes > 0);
+        });
+    });
+}
+
+// Unstar a professor
+async function unstarProfessor(userId, professorName, departmentName) {
+    const prof = await getProfessorByNameAndDepartment(professorName, departmentName);
+    if (!prof) {
+        throw new Error('Professor not found');
+    }
+    
+    return new Promise((resolve, reject) => {
+        db.run(`
+            DELETE FROM starred_professors 
+            WHERE user_id = ? AND professor_id = ?
+        `, [userId, prof.id], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes > 0);
+        });
+    });
+}
+
+// Get starred professor IDs for a user (for checking which are starred)
+async function getStarredProfessorIds(userId) {
+    return new Promise((resolve, reject) => {
+        db.all(`
+            SELECT p.id, p.name, d.name as department
+            FROM starred_professors sp
+            JOIN professors p ON sp.professor_id = p.id
+            JOIN departments d ON p.department_id = d.id
+            WHERE sp.user_id = ?
+        `, [userId], (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                // Return a map of professor name + department to professor ID for quick lookup
+                const starredMap = {};
+                rows.forEach(row => {
+                    const key = `${row.name}|${row.department}`;
+                    starredMap[key] = row.id;
+                });
+                resolve(starredMap);
+            }
+        });
+    });
+}
+
 module.exports = {
     initDatabase,
     getDatabase,
@@ -491,5 +736,15 @@ module.exports = {
     trackDepartmentView,
     getProfessorByNameAndDepartment,
     getProfessorAnalytics,
-    getAllAnalytics
+    getAllAnalytics,
+    updateProfessorStats,
+    getUserByEmail,
+    createUser,
+    getUserById,
+    getUserByGoogleId,
+    getStarredProfessors,
+    isProfessorStarred,
+    starProfessor,
+    unstarProfessor,
+    getStarredProfessorIds
 };

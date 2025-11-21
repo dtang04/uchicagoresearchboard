@@ -4,6 +4,10 @@ const searchButton = document.getElementById('searchButton');
 const resultsContainer = document.getElementById('resultsContainer');
 const filterButtons = document.querySelectorAll('.filter-btn');
 
+// Starred professors state
+let starredProfessors = new Set(); // Store as "name|department" keys
+let isViewingStarred = false;
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     // Search button click handler
@@ -24,6 +28,28 @@ document.addEventListener('DOMContentLoaded', () => {
             handleSearch();
         });
     });
+    
+    // Starred professors tab
+    const starredTab = document.getElementById('starredTab');
+    if (starredTab) {
+        starredTab.addEventListener('click', handleStarredTab);
+    }
+    
+    // Listen for auth events
+    window.addEventListener('userLoggedIn', () => {
+        loadStarredProfessors();
+    });
+    
+    window.addEventListener('userLoggedOut', () => {
+        starredProfessors.clear();
+        isViewingStarred = false;
+        if (starredTab) starredTab.classList.remove('active');
+    });
+    
+    // Load starred professors if already logged in
+    if (window.authService && window.authService.isAuthenticated()) {
+        loadStarredProfessors();
+    }
 });
 
 async function handleSearch() {
@@ -194,7 +220,15 @@ async function displayResults(query, professors) {
     
     let resultsHTML = `
         <div class="results-header">
-            <h2>${departmentName} Department</h2>
+            <h2>
+                <span class="department-name">${departmentName} Department</span>
+                <span class="info-icon" data-tooltip="Flip card to see additional statistics">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="8" cy="8" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                        <path d="M8 6V8M8 10H8.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </span>
+            </h2>
             <div class="results-count">Found ${professors.length} professor${professors.length !== 1 ? 's' : ''}</div>
         </div>
     `;
@@ -263,6 +297,7 @@ async function displayResults(query, professors) {
             // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
             setTimeout(() => {
                 setupClickTracking();
+                updateStarIcons();
             }, 100);
         }, 50);
     }, 150);
@@ -288,43 +323,291 @@ function setupClickTracking() {
         });
     });
     
-    // Track clicks on professor cards (optional - for general engagement)
+    // Track clicks on professor cards and handle flip
     const cards = document.querySelectorAll('.professor-card');
     console.log(`🔍 Setting up click tracking for ${cards.length} cards`);
     
     cards.forEach((card, index) => {
-        // Use mousedown or click - mousedown is more reliable
-        card.addEventListener('mousedown', async (e) => {
-            // Only track if clicking on the card itself, not on links
-            const clickedLink = e.target.closest('a');
-            if (!clickedLink) {
-                const professorName = card.getAttribute('data-professor');
-                const departmentName = card.getAttribute('data-department');
-                
-                if (professorName && departmentName) {
-                    console.log(`🔵 Card #${index} clicked! Professor: ${professorName}, Dept: ${departmentName}`);
-                    await trackClick(professorName, departmentName, 'card');
-                } else {
-                    console.warn('⚠️ Card missing data attributes:', card);
-                }
-            }
-        });
-        
-        // Also track on click as backup
+        // Handle card flip on click
         card.addEventListener('click', async (e) => {
+            // Don't flip if clicking on links or star icon
             const clickedLink = e.target.closest('a');
-            if (!clickedLink) {
-                const professorName = card.getAttribute('data-professor');
-                const departmentName = card.getAttribute('data-department');
-                
-                if (professorName && departmentName) {
-                    console.log(`🟢 Card #${index} click event! Professor: ${professorName}, Dept: ${departmentName}`);
-                }
+            const clickedStar = e.target.closest('.star-icon-container');
+            if (clickedLink || clickedStar) {
+                return; // Let the link/star handle its own click
             }
+            
+            const professorName = card.getAttribute('data-professor');
+            const departmentName = card.getAttribute('data-department');
+            
+                if (professorName && departmentName) {
+                    // Track the click
+                    await trackClick(professorName, departmentName, 'card');
+                    
+                    // Toggle flip
+                    const cardInner = card.querySelector('.card-inner');
+                    if (cardInner) {
+                        const isFlipped = cardInner.classList.contains('flipped');
+                        
+                        if (!isFlipped) {
+                            // Flipping to back - load stats (using placeholders for now)
+                            cardInner.classList.add('flipped');
+                            loadProfessorStats(card, professorName, departmentName);
+                        } else {
+                            // Flipping back to front
+                            cardInner.classList.remove('flipped');
+                        }
+                    }
+                }
         });
     });
     
+    // Setup star icon handlers
+    setupStarIcons();
+    
     console.log(`✅ Click tracking setup complete for ${cards.length} cards`);
+}
+
+// Setup star icon click handlers
+function setupStarIcons() {
+    document.querySelectorAll('.star-icon-container').forEach(container => {
+        container.addEventListener('click', async (e) => {
+            e.stopPropagation(); // Prevent card flip
+            
+            if (!window.authService || !window.authService.isAuthenticated()) {
+                // Show login modal
+                document.getElementById('authModal').style.display = 'flex';
+                return;
+            }
+            
+            const professorName = container.getAttribute('data-professor');
+            const departmentName = container.getAttribute('data-department');
+            const starIcon = container.querySelector('.star-icon');
+            const isStarred = starIcon.classList.contains('starred');
+            
+            try {
+                const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
+                const token = window.authService.getAuthToken();
+                
+                if (isStarred) {
+                    // Unstar
+                    const response = await fetch(`${API_BASE}/starred`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ professorName, departmentName })
+                    });
+                    
+                    if (response.ok) {
+                        starIcon.classList.remove('starred');
+                        const key = `${professorName}|${departmentName}`;
+                        starredProfessors.delete(key);
+                    }
+                } else {
+                    // Star
+                    const response = await fetch(`${API_BASE}/starred`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ professorName, departmentName })
+                    });
+                    
+                    if (response.ok) {
+                        starIcon.classList.add('starred');
+                        const key = `${professorName}|${departmentName}`;
+                        starredProfessors.add(key);
+                    }
+                }
+            } catch (error) {
+                console.error('Error toggling star:', error);
+            }
+        });
+    });
+}
+
+// Update star icons based on starred state
+function updateStarIcons() {
+    document.querySelectorAll('.star-icon-container').forEach(container => {
+        const professorName = container.getAttribute('data-professor');
+        const departmentName = container.getAttribute('data-department');
+        const starIcon = container.querySelector('.star-icon');
+        const key = `${professorName}|${departmentName}`;
+        
+        if (starredProfessors.has(key)) {
+            starIcon.classList.add('starred');
+        } else {
+            starIcon.classList.remove('starred');
+        }
+    });
+}
+
+// Load starred professors
+async function loadStarredProfessors() {
+    if (!window.authService || !window.authService.isAuthenticated()) {
+        return;
+    }
+    
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
+        const token = window.authService.getAuthToken();
+        
+        const response = await fetch(`${API_BASE}/starred/ids`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            starredProfessors.clear();
+            Object.keys(data.starred).forEach(key => {
+                starredProfessors.add(key);
+            });
+            updateStarIcons();
+        }
+    } catch (error) {
+        console.error('Error loading starred professors:', error);
+    }
+}
+
+// Handle starred professors tab click
+async function handleStarredTab() {
+    const starredTab = document.getElementById('starredTab');
+    isViewingStarred = !isViewingStarred;
+    
+    if (isViewingStarred) {
+        starredTab.classList.add('active');
+        await displayStarredProfessors();
+    } else {
+        starredTab.classList.remove('active');
+        showWelcomeMessage();
+    }
+}
+
+// Display starred professors
+async function displayStarredProfessors() {
+    if (!window.authService || !window.authService.isAuthenticated()) {
+        return;
+    }
+    
+    try {
+        const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
+        const token = window.authService.getAuthToken();
+        
+        const response = await fetch(`${API_BASE}/starred`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load starred professors');
+        }
+        
+        const data = await response.json();
+        const professors = data.starred || [];
+        
+        if (professors.length === 0) {
+            resultsContainer.innerHTML = `
+                <div class="no-results">
+                    <h3>No starred professors</h3>
+                    <p>You haven't starred any professors yet. Click the star icon on any professor card to add them to your favorites.</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let resultsHTML = `
+            <div class="results-header">
+                <h2>
+                    <span class="department-name">Starred Professors</span>
+                </h2>
+                <div class="results-count">${professors.length} starred professor${professors.length !== 1 ? 's' : ''}</div>
+            </div>
+            <div class="professors-grid">
+                ${professors.map(prof => createProfessorCard(prof, prof.department || 'unknown')).join('')}
+            </div>
+        `;
+        
+        resultsContainer.style.opacity = '0';
+        resultsContainer.style.transform = 'translateY(20px)';
+        resultsContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        
+        setTimeout(() => {
+            resultsContainer.innerHTML = resultsHTML;
+            
+            setTimeout(() => {
+                resultsContainer.style.opacity = '1';
+                resultsContainer.style.transform = 'translateY(0)';
+                
+                const cards = resultsContainer.querySelectorAll('.professor-card');
+                cards.forEach((card, index) => {
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(30px) scale(0.9)';
+                    setTimeout(() => {
+                        card.style.transition = `opacity 0.5s ease ${index * 0.05}s, transform 0.5s ease ${index * 0.05}s`;
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0) scale(1)';
+                    }, 50);
+                });
+                
+                setTimeout(() => {
+                    setupClickTracking();
+                    updateStarIcons();
+                }, 100);
+            }, 50);
+        }, 150);
+    } catch (error) {
+        console.error('Error displaying starred professors:', error);
+        resultsContainer.innerHTML = `
+            <div class="no-results">
+                <h3>Error loading starred professors</h3>
+                <p>Unable to load your starred professors. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+// Load professor stats and display them
+// For now, using placeholder data (0s) - data will be entered manually over time
+function loadProfessorStats(card, professorName, departmentName) {
+    const statsContent = card.querySelector('.stats-content');
+    const statsLoading = card.querySelector('.stats-loading');
+    
+    if (!statsContent || !statsLoading) return;
+    
+    // Hide loading, show content immediately with placeholder data
+    statsLoading.style.display = 'none';
+    
+    // Use placeholder data (0s) for now
+    // TODO: Replace with actual data from database as it's entered manually
+    const stats = {
+        numLabMembers: 0,
+        numUndergradResearchers: 0,
+        numPublishedPapers: 0
+    };
+    
+    // Update stat values
+    const labMembersEl = card.querySelector('[data-stat="lab-members"]');
+    const undergradEl = card.querySelector('[data-stat="undergrad"]');
+    const papersEl = card.querySelector('[data-stat="papers"]');
+    
+    if (labMembersEl) {
+        labMembersEl.textContent = stats.numLabMembers;
+    }
+    if (undergradEl) {
+        undergradEl.textContent = stats.numUndergradResearchers;
+    }
+    if (papersEl) {
+        papersEl.textContent = stats.numPublishedPapers;
+    }
+    
+    // Show content
+    statsContent.style.display = 'block';
 }
 
 // Track click analytics
@@ -398,14 +681,42 @@ function createProfessorCard(professor, departmentName) {
         : '';
     
     return `
-        <div class="professor-card" data-professor="${professor.name}" data-department="${departmentName}" data-click-type="card">
-            <div class="professor-name">${professor.name}</div>
-            <div class="professor-title">${professor.title}</div>
-            <div class="lab-section">
-                <div class="lab-label">Research Lab</div>
-                ${labLink}
+        <div class="professor-card" data-professor="${professor.name}" data-department="${departmentName}" data-click-type="card" id="${cardId}">
+            <div class="star-icon-container" data-professor="${professor.name}" data-department="${departmentName}">
+                <svg class="star-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
             </div>
-            ${emailSection}
+            <div class="card-inner">
+                <div class="card-front">
+                    <div class="professor-name">${professor.name}</div>
+                    <div class="professor-title">${professor.title}</div>
+                    <div class="lab-section">
+                        <div class="lab-label">Research Lab</div>
+                        ${labLink}
+                    </div>
+                    ${emailSection}
+                </div>
+                <div class="card-back">
+                    <div class="stats-loading">Loading stats...</div>
+                    <div class="stats-content" style="display: none;">
+                        <div class="stats-header">Lab Statistics</div>
+                        <div class="stat-item">
+                            <div class="stat-label">Lab Members</div>
+                            <div class="stat-value" data-stat="lab-members">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Undergraduate Researchers</div>
+                            <div class="stat-value" data-stat="undergrad">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">Published Papers</div>
+                            <div class="stat-value" data-stat="papers">-</div>
+                        </div>
+                        <div class="flip-hint">Click to flip back</div>
+                    </div>
+                </div>
+            </div>
         </div>
     `;
 }
