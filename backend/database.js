@@ -282,8 +282,8 @@ async function addProfessor(departmentName, professor) {
 }
 
 /**
- * Get trending labs for a department based on click analytics
- * Returns top 3 labs/professors by clicks in the last 30 days
+ * Get trending labs for a department based on weighted average of clicks and undergraduate researchers
+ * Returns top 3 labs/professors by weighted score (70% undergrads, 30% clicks)
  */
 function getTrendingLabs(departmentName) {
     return new Promise((resolve, reject) => {
@@ -293,28 +293,65 @@ function getTrendingLabs(departmentName) {
                 return;
             }
             
-            // Get top professors by clicks (last 30 days, minimum 1 click)
+            // Get professors with clicks and undergrad counts
             db.all(`
                 SELECT 
+                    p.id,
                     p.lab,
                     p.name,
-                    COUNT(pc.id) as click_count
+                    COALESCE(COUNT(DISTINCT pc.id), 0) as click_count,
+                    COALESCE(p.num_undergrad_researchers, 0) as undergrad_count
                 FROM professors p
                 LEFT JOIN professor_clicks pc ON p.id = pc.professor_id 
                     AND pc.clicked_at >= datetime('now', '-30 days')
                 WHERE p.department_id = ?
-                GROUP BY p.id, p.lab, p.name
-                HAVING click_count > 0
-                ORDER BY click_count DESC, p.name ASC
-                LIMIT 3
+                GROUP BY p.id, p.lab, p.name, p.num_undergrad_researchers
             `, [dept.id], (err, rows) => {
                 if (err) {
                     reject(err);
                     return;
                 }
                 
-                // Return lab names (or professor names if no lab)
-                const trending = rows.map(r => r.lab || r.name);
+                if (rows.length === 0) {
+                    resolve([]);
+                    return;
+                }
+                
+                // Normalize values for weighted average
+                // Find max values for normalization
+                const maxClicks = Math.max(...rows.map(r => r.click_count), 1);
+                const maxUndergrads = Math.max(...rows.map(r => r.undergrad_count), 1);
+                
+                // Calculate weighted score for each professor
+                // Weight: 70% undergrads, 30% clicks
+                const UNDERGRAD_WEIGHT = 0.7;
+                const CLICK_WEIGHT = 0.3;
+                
+                const scored = rows.map(r => {
+                    // Normalize to 0-1 scale
+                    const normalizedClicks = maxClicks > 0 ? r.click_count / maxClicks : 0;
+                    const normalizedUndergrads = maxUndergrads > 0 ? r.undergrad_count / maxUndergrads : 0;
+                    
+                    // Weighted average
+                    const score = (normalizedUndergrads * UNDERGRAD_WEIGHT) + (normalizedClicks * CLICK_WEIGHT);
+                    
+                    return {
+                        ...r,
+                        score: score
+                    };
+                });
+                
+                // Sort by score (descending), then by name
+                scored.sort((a, b) => {
+                    if (Math.abs(a.score - b.score) < 0.0001) {
+                        // If scores are very close, sort by name
+                        return (a.lab || a.name).localeCompare(b.lab || b.name);
+                    }
+                    return b.score - a.score;
+                });
+                
+                // Return top 3 lab names (or professor names if no lab)
+                const trending = scored.slice(0, 3).map(r => r.lab || r.name);
                 resolve(trending);
             });
         }).catch(reject);
@@ -542,9 +579,9 @@ async function updateProfessorStats(professorName, departmentName, stats) {
                 num_published_papers = ?
             WHERE id = ?
         `, [
-            stats.numUndergradResearchers || null,
-            stats.numLabMembers || null,
-            stats.numPublishedPapers || null,
+            stats.numUndergradResearchers !== undefined && stats.numUndergradResearchers !== null ? stats.numUndergradResearchers : null,
+            stats.numLabMembers !== undefined && stats.numLabMembers !== null ? stats.numLabMembers : null,
+            stats.numPublishedPapers !== undefined && stats.numPublishedPapers !== null ? stats.numPublishedPapers : null,
             prof.id
         ], function(err) {
             if (err) reject(err);

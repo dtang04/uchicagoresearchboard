@@ -33,9 +33,9 @@ async function updateProfessorStats() {
         }
         
         const stats = {
-            numUndergradResearchers: parseInt(undergrads) || null,
-            numLabMembers: parseInt(labMembers) || null,
-            numPublishedPapers: parseInt(publishedPapers) || null
+            numUndergradResearchers: (undergrads === 'null' || undergrads === '') ? null : (isNaN(parseInt(undergrads)) ? null : parseInt(undergrads)),
+            numLabMembers: (labMembers === 'null' || labMembers === '') ? null : (isNaN(parseInt(labMembers)) ? null : parseInt(labMembers)),
+            numPublishedPapers: (publishedPapers === 'null' || publishedPapers === '') ? null : (isNaN(parseInt(publishedPapers)) ? null : parseInt(publishedPapers))
         };
         
         await db.updateProfessorStats(name, department, stats);
