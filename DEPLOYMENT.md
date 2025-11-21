@@ -73,13 +73,81 @@ npm install pg
 ```
 
 ### 2. Environment Variables
-Create `.env` file in backend:
+
+**Yes, you still need environment variables in production!** In fact, it's even more important for security. Each deployment platform has its own way to set them (you don't upload `.env` files directly).
+
+#### Required Environment Variables
 
 ```env
+# Server Configuration
 PORT=3001
 NODE_ENV=production
-DATABASE_URL=postgresql://... (if using PostgreSQL)
+FRONTEND_URL=https://yourdomain.com
+
+# Authentication
+JWT_SECRET=your-secret-key-here
+SESSION_SECRET=your-session-secret-here
+
+# Google OAuth (optional - if using Google login)
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_CALLBACK_URL=https://yourdomain.com/api/auth/google/callback
+
+# Email Service (for signup confirmations)
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
+EMAIL_FROM=noreply@yourdomain.com
+
+# Database (if using PostgreSQL)
+DATABASE_URL=postgresql://user:password@host:port/database
 ```
+
+#### How to Set Environment Variables by Platform
+
+**Vercel:**
+1. Go to your project dashboard
+2. Click **Settings** → **Environment Variables**
+3. Add each variable (key and value)
+4. Select environment (Production, Preview, Development)
+5. Redeploy your application
+
+**Railway:**
+1. Open your project
+2. Click on your service
+3. Go to **Variables** tab
+4. Click **+ New Variable**
+5. Add each variable
+6. Changes apply automatically (no redeploy needed)
+
+**Render:**
+1. Go to your service dashboard
+2. Click **Environment** in the sidebar
+3. Click **Add Environment Variable**
+4. Add each variable
+5. Save changes (service will restart automatically)
+
+**DigitalOcean App Platform:**
+1. Go to your app settings
+2. Click **App-Level Environment Variables**
+3. Add each variable
+4. Save and redeploy
+
+**Traditional VPS (SSH):**
+1. SSH into your server
+2. Create `.env` file in your project directory:
+   ```bash
+   nano /path/to/backend/.env
+   ```
+3. Add all variables
+4. Restart your application (PM2, systemd, etc.)
+
+**Important Notes:**
+- ⚠️ **Never commit `.env` files to Git** (they're in `.gitignore`)
+- 🔒 Use different credentials for production vs development
+- 🔑 Generate strong random strings for secrets (use `openssl rand -base64 32`)
+- 📧 For email, use a professional service like SendGrid in production (see `EMAIL_SETUP.md`)
 
 ### 3. CORS Configuration
 Update `backend/server.js` if frontend/backend are on different domains:
@@ -111,9 +179,11 @@ You can override by setting `window.API_BASE_URL` before loading scripts.
 
 - [ ] Choose hosting platform
 - [ ] Set up database (PostgreSQL recommended for production)
-- [ ] Configure environment variables
+- [ ] **Set all environment variables in platform dashboard** (see above)
+- [ ] Configure email service (see `EMAIL_SETUP.md` for details)
 - [ ] Update CORS if needed
 - [ ] Test API endpoints
+- [ ] Test email sending (signup a test account)
 - [ ] Set up domain name
 - [ ] Enable HTTPS (most platforms do this automatically)
 - [ ] Set up monitoring/logging

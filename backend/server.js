@@ -7,6 +7,7 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const db = require('./database');
 const statsService = require('./stats-service');
 const auth = require('./auth-service');
+const emailService = require('./email-service');
 
 const app = express();
 const PORT = 3001;
@@ -326,6 +327,12 @@ app.post('/api/auth/signup', async (req, res) => {
         // Generate token
         const token = auth.generateToken(userId, email);
         const user = await db.getUserById(userId);
+        
+        // Send confirmation email (non-blocking - don't fail signup if email fails)
+        emailService.sendSignupConfirmation(email, name).catch(err => {
+            console.error('Failed to send signup confirmation email:', err);
+            // Don't throw - signup should succeed even if email fails
+        });
         
         res.json({
             success: true,
