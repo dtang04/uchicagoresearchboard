@@ -72,17 +72,17 @@ async function fetchStatsFromWeb(professor) {
 
 /**
  * Get stats for a professor
- * First tries to get from database, then estimates if not available
+ * Only returns real data from database - no estimates
  */
 async function getProfessorStats(professor, db) {
     try {
         // Try to get from database first
         const prof = await db.getProfessorByNameAndDepartment(professor.name, professor.departmentName);
-        if (prof && (prof.num_lab_members || prof.num_undergrad_researchers || prof.num_published_papers)) {
+        if (prof && (prof.num_lab_members !== null || prof.num_undergrad_researchers !== null || prof.num_published_papers !== null)) {
             return {
-                numLabMembers: prof.num_lab_members,
-                numUndergradResearchers: prof.num_undergrad_researchers,
-                numPublishedPapers: prof.num_published_papers
+                numLabMembers: prof.num_lab_members || 0,
+                numUndergradResearchers: prof.num_undergrad_researchers || 0,
+                numPublishedPapers: prof.num_published_papers || 0
             };
         }
         
@@ -94,22 +94,20 @@ async function getProfessorStats(professor, db) {
             return webStats;
         }
         
-        // Fall back to estimates
-        const estimatedStats = estimateStats(professor);
-        
-        // Save estimates to database (so we don't recalculate every time)
-        try {
-            await db.updateProfessorStats(professor.name, professor.departmentName, estimatedStats);
-        } catch (err) {
-            // If update fails, that's okay - we'll still return the estimates
-            console.warn('Could not save estimated stats:', err);
-        }
-        
-        return estimatedStats;
+        // Return null/0 values if no data available (don't generate fake estimates)
+        return {
+            numLabMembers: 0,
+            numUndergradResearchers: 0,
+            numPublishedPapers: 0
+        };
     } catch (error) {
         console.error('Error getting professor stats:', error);
-        // Return estimates as fallback
-        return estimateStats(professor);
+        // Return zeros instead of estimates
+        return {
+            numLabMembers: 0,
+            numUndergradResearchers: 0,
+            numPublishedPapers: 0
+        };
     }
 }
 

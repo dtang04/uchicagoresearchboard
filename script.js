@@ -573,41 +573,75 @@ async function displayStarredProfessors() {
 }
 
 // Load professor stats and display them
-// For now, using placeholder data (0s) - data will be entered manually over time
-function loadProfessorStats(card, professorName, departmentName) {
+async function loadProfessorStats(card, professorName, departmentName) {
     const statsContent = card.querySelector('.stats-content');
     const statsLoading = card.querySelector('.stats-loading');
     
     if (!statsContent || !statsLoading) return;
     
-    // Hide loading, show content immediately with placeholder data
-    statsLoading.style.display = 'none';
+    // Get API base URL from config.js
+    const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
     
-    // Use placeholder data (0s) for now
-    // TODO: Replace with actual data from database as it's entered manually
-    const stats = {
-        numLabMembers: 0,
-        numUndergradResearchers: 0,
-        numPublishedPapers: 0
-    };
-    
-    // Update stat values
-    const labMembersEl = card.querySelector('[data-stat="lab-members"]');
-    const undergradEl = card.querySelector('[data-stat="undergrad"]');
-    const papersEl = card.querySelector('[data-stat="papers"]');
-    
-    if (labMembersEl) {
-        labMembersEl.textContent = stats.numLabMembers;
+    try {
+        // Fetch stats from API
+        const response = await fetch(`${API_BASE}/professor/stats`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                professorName: professorName,
+                departmentName: departmentName.toLowerCase()
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            const stats = data.stats || {
+                numLabMembers: 0,
+                numUndergradResearchers: 0,
+                numPublishedPapers: 0
+            };
+            
+            // Update stat values
+            const labMembersEl = card.querySelector('[data-stat="lab-members"]');
+            const undergradEl = card.querySelector('[data-stat="undergrad"]');
+            const papersEl = card.querySelector('[data-stat="papers"]');
+            
+            if (labMembersEl) {
+                labMembersEl.textContent = stats.numLabMembers || 0;
+            }
+            if (undergradEl) {
+                undergradEl.textContent = stats.numUndergradResearchers || 0;
+            }
+            if (papersEl) {
+                papersEl.textContent = stats.numPublishedPapers || 0;
+            }
+        } else {
+            // If API fails, show zeros
+            const labMembersEl = card.querySelector('[data-stat="lab-members"]');
+            const undergradEl = card.querySelector('[data-stat="undergrad"]');
+            const papersEl = card.querySelector('[data-stat="papers"]');
+            
+            if (labMembersEl) labMembersEl.textContent = 0;
+            if (undergradEl) undergradEl.textContent = 0;
+            if (papersEl) papersEl.textContent = 0;
+        }
+    } catch (error) {
+        console.error('Error loading professor stats:', error);
+        // On error, show zeros
+        const labMembersEl = card.querySelector('[data-stat="lab-members"]');
+        const undergradEl = card.querySelector('[data-stat="undergrad"]');
+        const papersEl = card.querySelector('[data-stat="papers"]');
+        
+        if (labMembersEl) labMembersEl.textContent = 0;
+        if (undergradEl) undergradEl.textContent = 0;
+        if (papersEl) papersEl.textContent = 0;
+    } finally {
+        // Hide loading, show content
+        statsLoading.style.display = 'none';
+        statsContent.style.display = 'block';
     }
-    if (undergradEl) {
-        undergradEl.textContent = stats.numUndergradResearchers;
-    }
-    if (papersEl) {
-        papersEl.textContent = stats.numPublishedPapers;
-    }
-    
-    // Show content
-    statsContent.style.display = 'block';
 }
 
 // Track click analytics
