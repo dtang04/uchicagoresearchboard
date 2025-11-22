@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: uchicago-research-board
+    env: node
+    plan: free
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_URL
+        sync: false  # Set this in Render dashboard after deployment
+    healthCheckPath: /health
+

@@ -4,10 +4,8 @@ FROM node:18-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install dependencies
 COPY backend/package*.json ./backend/
-
-# Install dependencies (install all, not just production, to ensure everything works)
 WORKDIR /app/backend
 RUN npm install
 
@@ -15,13 +13,10 @@ RUN npm install
 WORKDIR /app
 COPY . .
 
-# Expose port (Railway will set PORT env var dynamically)
-# Using 3000 as default, but Railway will override via PORT env var
-EXPOSE 3000
+# Expose port (Render sets PORT env var)
+EXPOSE 10000
 
 # Start the application
 WORKDIR /app/backend
-
-# Use node directly instead of npm to avoid npm wrapper issues
 CMD ["node", "server.js"]
 

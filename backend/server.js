@@ -1,11 +1,4 @@
-// Log immediately - before anything else
-console.log('🚀 Server file loaded');
-console.log('📦 Node version:', process.version);
-console.log('📂 Current directory:', process.cwd());
-console.log('📁 __dirname:', __dirname);
-
 require('dotenv').config();
-console.log('✅ dotenv loaded');
 
 const express = require('express');
 const cors = require('cors');
@@ -13,13 +6,11 @@ const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
-console.log('✅ Express and dependencies loaded');
 
 const db = require('./database');
 const statsService = require('./stats-service');
 const auth = require('./auth-service');
 const emailService = require('./email-service');
-console.log('✅ All modules loaded');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,14 +25,9 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 let serverReady = false;
 let databaseReady = false;
 
-// Health check endpoints - MUST be FIRST, before ANY middleware
-// Railway health checks need immediate response without any processing
-// These MUST respond synchronously and complete the response
+// Simple health check endpoint - Render checks this
 app.get('/health', (req, res) => {
-    console.log('🏥 [HEALTH] /health check - responding with ok');
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('ok');
-    console.log('✅ [HEALTH] /health response completed');
+    res.status(200).send('ok');
 });
 
 app.get('/api/health', (req, res) => {
@@ -53,12 +39,11 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// Request logging middleware - runs after health checks
+// Request logging middleware
 app.use((req, res, next) => {
-    console.log(`📥 [REQUEST] ${req.method} ${req.path}`);
-    console.log(`   URL: ${req.url}`);
-    console.log(`   Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`   IP: ${req.ip}`);
+    if (process.env.NODE_ENV === 'production' && !req.path.startsWith('/health')) {
+        console.log(`${req.method} ${req.path}`);
+    }
     next();
 });
 
@@ -85,12 +70,7 @@ const sessionConfig = {
     }
 };
 
-// In production, suppress the MemoryStore warning (it's fine for single-process deployments)
-if (process.env.NODE_ENV === 'production') {
-    // MemoryStore is fine for single-process Railway deployments
-    // The warning is for multi-process scenarios
-    console.log('ℹ️  Using MemoryStore for sessions (fine for single-process deployment)');
-}
+// MemoryStore is fine for single-process deployments
 
 app.use(session(sessionConfig));
 
@@ -151,8 +131,7 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
         }
     }));
 } else {
-    console.warn('⚠️  Google OAuth credentials not set. Google login will not work.');
-    console.warn('   Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables.');
+    console.warn('⚠️  Google OAuth not configured (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)');
 }
 
 // Helper to get client IP and user agent
@@ -603,13 +582,12 @@ app.post('/api/professor/stats', async (req, res) => {
 // Health check endpoints are now defined at the very top, before all middleware
 
 // Root route - serve index.html directly for browsers
-// This ensures Railway routes traffic correctly to our app
+// Serve index.html for browser requests
 app.get('/', (req, res) => {
     console.log('🌐 [ROOT] Request to / - Serving index.html');
     try {
         const acceptHeader = req.get('Accept') || '';
-        // If it's explicitly a JSON-only request (likely a health check), return JSON
-        // Railway health checks don't use Accept headers, so this won't interfere
+        // If it's explicitly a JSON-only request, return JSON
         if (acceptHeader === 'application/json' && !acceptHeader.includes('text/html')) {
             console.log('🌐 [ROOT] Returning JSON (JSON-only request)');
             return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
@@ -649,190 +627,45 @@ app.get('/', (req, res) => {
 });
 
 // Serve static files (must be after all API routes)
-// Always serve in production, or if RAILWAY environment is set (Railway deployment)
-// Railway automatically sets RAILWAY environment variable, and we also check RAILWAY_ENVIRONMENT
-// Default to serving static files unless explicitly in development mode
-// Also check if PORT is set (Railway always sets this) as a fallback
-console.log('🔍 Checking static file serving configuration...');
-const isDevelopment = process.env.NODE_ENV === 'development' && !process.env.RAILWAY && !process.env.RAILWAY_ENVIRONMENT;
-// Railway always sets PORT, so if PORT is set and NODE_ENV is not explicitly 'development', serve static files
-const isRailway = process.env.RAILWAY || process.env.RAILWAY_ENVIRONMENT || (process.env.PORT && process.env.NODE_ENV !== 'development');
-const shouldServeStatic = !isDevelopment || process.env.NODE_ENV === 'production' || isRailway;
-
-console.log(`🔍 Static file serving check:`);
-console.log(`   isDevelopment: ${isDevelopment}`);
-console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-console.log(`   PORT: ${process.env.PORT || 'not set'}`);
-console.log(`   RAILWAY: ${process.env.RAILWAY || 'not set'}`);
-console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
-console.log(`   isRailway (detected): ${isRailway}`);
-console.log(`   shouldServeStatic: ${shouldServeStatic}`);
+// Serve static files in production, skip in development
+const shouldServeStatic = process.env.NODE_ENV === 'production';
 
 if (shouldServeStatic) {
-    try {
-        const staticPath = path.join(__dirname, '..');
-        console.log(`📁 Serving static files from: ${staticPath}`);
-        
-        // Verify the path exists and index.html is accessible
-        const fs = require('fs');
-        const indexPath = path.join(staticPath, 'index.html');
-        const absoluteIndexPath = path.resolve(indexPath);
-        
-        console.log(`🔍 Checking for index.html:`);
-        console.log(`   Relative path: ${indexPath}`);
-        console.log(`   Absolute path: ${absoluteIndexPath}`);
-        console.log(`   __dirname: ${__dirname}`);
-        console.log(`   staticPath: ${staticPath}`);
-        
-        if (fs.existsSync(absoluteIndexPath)) {
-            console.log(`✅ Found index.html at: ${absoluteIndexPath}`);
-            // List files in the static directory to help debug
-            try {
-                const files = fs.readdirSync(staticPath);
-                console.log(`📋 Files in static directory (${staticPath}):`, files.slice(0, 10).join(', '), files.length > 10 ? `... (${files.length} total)` : '');
-            } catch (err) {
-                console.warn(`⚠️  Could not list files in static directory: ${err.message}`);
-            }
-        } else {
-            console.error(`❌ index.html NOT FOUND at: ${absoluteIndexPath}`);
-            console.error(`   This is why the frontend isn't loading!`);
-            // Try to find where index.html actually is
-            try {
-                const files = fs.readdirSync(staticPath);
-                console.log(`📋 Files in static directory:`, files.join(', '));
-            } catch (err) {
-                console.error(`   Cannot read directory ${staticPath}: ${err.message}`);
-            }
+    const staticPath = path.join(__dirname, '..');
+    const absoluteStaticPath = path.resolve(staticPath);
+    
+    // Serve static files (CSS, JS, etc.) - skip API routes
+    app.use((req, res, next) => {
+        if (req.path.startsWith('/api')) {
+            return next();
         }
-        
-        // Serve static files from parent directory (frontend), but exclude /api routes
-        // Use absolute path to ensure it works correctly
-        const absoluteStaticPath = path.resolve(staticPath);
-        console.log(`📂 Absolute static path: ${absoluteStaticPath}`);
-        
-        // Register static file middleware properly
-        // Skip /api routes and root path from static file serving
-        // Root path will be handled by catch-all route
-        app.use((req, res, next) => {
-            if (req.path.startsWith('/api')) {
-                return next(); // Skip static files for API routes
-            }
-            if (req.path === '/') {
-                return next(); // Skip root path, let catch-all handle it
-            }
-            next(); // Continue to static middleware for other paths
-        });
-        
-        // Serve static files (CSS, JS, images, etc.) - but NOT for root path
-        // Root path will be handled by catch-all route to serve index.html
-        app.use(express.static(absoluteStaticPath, { index: false }));
-        
-        // Serve index.html for all non-API routes (SPA routing)
-        // This must be after the static middleware
-        // This catch-all will handle root path and all other non-API routes
-        app.get('*', (req, res, next) => {
-            try {
-                // Skip API routes
-                if (req.path.startsWith('/api')) {
-                    return next();
-                }
-                const indexPath = path.resolve(staticPath, 'index.html');
-                console.log(`📄 [CATCH-ALL] Attempting to serve index.html for: ${req.path}`);
-                console.log(`   Full path: ${indexPath}`);
-                console.log(`   Request method: ${req.method}`);
-                console.log(`   Request URL: ${req.url}`);
-                
-                // Check if file exists before trying to send it
-                const fs = require('fs');
-                if (!fs.existsSync(indexPath)) {
-                    console.error(`❌ [CATCH-ALL] index.html does not exist at: ${indexPath}`);
-                    return res.status(404).send(`File not found: index.html`);
-                }
-                
-                // Use sendFile with absolute path and proper error handling
-                res.sendFile(indexPath, (err) => {
-                    if (err) {
-                        // Don't send response if headers already sent
-                        if (res.headersSent) {
-                            console.error(`❌ [CATCH-ALL] Error after headers sent: ${err.message}`);
-                            return;
-                        }
-                        console.error(`❌ [CATCH-ALL] Error serving index.html for ${req.path}: ${err.message}`);
-                        console.error(`   Error code: ${err.code}`);
-                        console.error(`   Attempted path: ${indexPath}`);
-                        res.status(404).send(`File not found: ${req.path}`);
-                    } else {
-                        console.log(`✅ [CATCH-ALL] Successfully served index.html for: ${req.path}`);
-                    }
-                });
-            } catch (error) {
-                console.error(`❌ [CATCH-ALL] Exception in catch-all route: ${error.message}`);
-                console.error(`   Stack: ${error.stack}`);
-                if (!res.headersSent) {
-                    res.status(500).send('Internal server error');
-                }
-            }
-        });
-        console.log('✅ Static file serving configured');
-    } catch (error) {
-        console.error('❌ Error configuring static file serving:', error);
-        // Don't throw - let server start anyway
-    }
-} else {
-    console.log('⚠️  Static file serving disabled (development mode)');
+        next();
+    });
+    
+    app.use(express.static(absoluteStaticPath, { index: false }));
+    
+    // Serve index.html for all non-API routes (SPA routing)
+    app.get('*', (req, res) => {
+        if (req.path.startsWith('/api')) {
+            return res.status(404).json({ error: 'Not found' });
+        }
+        const indexPath = path.resolve(staticPath, 'index.html');
+        res.sendFile(indexPath);
+    });
+    
+    console.log(`✅ Serving static files from: ${absoluteStaticPath}`);
 }
 
 // Start server
 async function startServer() {
     try {
-        console.log('🔧 Starting server...');
-        console.log(`📦 PORT: ${PORT}`);
-        console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-        console.log(`📂 __dirname: ${__dirname}`);
-        
-        // Listen on 0.0.0.0 to accept connections from Railway
-        // Start listening IMMEDIATELY so Railway health checks pass
         const HOST = process.env.HOST || '0.0.0.0';
         const server = app.listen(PORT, HOST, () => {
-            serverReady = true; // Mark server as ready for health checks
-            const env = process.env.NODE_ENV || 'development';
-            console.log(`🚀 Backend server running on http://${HOST}:${PORT} (${env})`);
-            console.log(`✅ Server is ready and listening!`);
-            console.log(`🏥 Health check available at: http://${HOST}:${PORT}/health`);
-            if (process.env.NODE_ENV === 'production') {
-                console.log(`📁 Serving static files from: ${path.join(__dirname, '..')}`);
-            }
-            console.log(`📊 API endpoints:`);
-            console.log(`   GET  /api/departments - Get all departments data`);
-            console.log(`   POST /api/departments - Get department data by name`);
-            console.log(`   GET  /api/departments/list - Get list of all departments`);
-            console.log(`   POST /api/trending-labs - Get trending labs`);
-            console.log(`   PUT  /api/trending-labs - Update trending labs`);
-            console.log(`   POST /api/analytics/view - Track professor view`);
-            console.log(`   POST /api/analytics/click - Track professor click`);
-            console.log(`   GET  /api/analytics/professor/:name/:dept - Get professor analytics`);
-            console.log(`   GET  /api/analytics/all - Get all analytics (admin)`);
-            console.log(`   POST /api/professor/stats - Get professor stats`);
-            console.log(`   POST /api/auth/signup - Sign up with email`);
-            console.log(`   POST /api/auth/login - Login with email`);
-            console.log(`   GET  /api/auth/google - Initiate Google OAuth`);
-            console.log(`   GET  /api/auth/google/callback - Google OAuth callback`);
-            console.log(`   GET  /api/auth/me - Get current user`);
-            if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
-                console.log(`   ✅ Google OAuth configured`);
-            } else {
-                console.log(`   ⚠️  Google OAuth not configured (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)`);
-            }
-            console.log(`   GET  /api/starred - Get starred professors`);
-            console.log(`   GET  /api/starred/ids - Get starred professor IDs`);
-            console.log(`   POST /api/starred - Star a professor`);
-            console.log(`   DELETE /api/starred - Unstar a professor`);
-            console.log(`   GET  /api/health - Health check`);
+            serverReady = true;
+            console.log(`🚀 Server running on http://${HOST}:${PORT}`);
         });
         
         // Initialize database AFTER server starts listening (non-blocking)
-        // This allows Railway health checks to pass immediately
-        console.log('💾 Initializing database...');
         db.initDatabase().then(() => {
             databaseReady = true;
             console.log('✅ Database initialized successfully');
@@ -858,7 +691,7 @@ process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
     console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    // In production, log and let Railway handle restart
+    // In production, log and let the process manager handle restart
     // Don't exit immediately - let the process die naturally
     if (process.env.NODE_ENV !== 'production') {
         process.exit(1);
@@ -877,7 +710,7 @@ process.on('unhandledRejection', (reason, promise) => {
     }
 });
 
-// Handle SIGTERM gracefully (Railway sends this to stop containers)
+// Handle SIGTERM gracefully (Render/process managers send this to stop services)
 process.on('SIGTERM', () => {
     console.log('🛑 SIGTERM received, shutting down gracefully...');
     // Get database instance and close it if available
@@ -906,7 +739,6 @@ process.on('SIGTERM', () => {
 });
 
 // Start the server
-console.log('🎬 Starting server initialization...');
 startServer().catch((err) => {
     console.error('❌ Fatal error starting server:', err);
     process.exit(1);
