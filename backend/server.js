@@ -599,39 +599,59 @@ app.get('/', (req, res, next) => {
 // Always serve in production, or if RAILWAY environment is set (Railway deployment)
 // Railway automatically sets RAILWAY environment variable, and we also check RAILWAY_ENVIRONMENT
 // Default to serving static files unless explicitly in development mode
+console.log('🔍 Checking static file serving configuration...');
 const isDevelopment = process.env.NODE_ENV === 'development' && !process.env.RAILWAY && !process.env.RAILWAY_ENVIRONMENT;
 const shouldServeStatic = !isDevelopment || process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RAILWAY_ENVIRONMENT;
 
+console.log(`🔍 Static file serving check:`);
+console.log(`   isDevelopment: ${isDevelopment}`);
+console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`   RAILWAY: ${process.env.RAILWAY || 'not set'}`);
+console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
+console.log(`   shouldServeStatic: ${shouldServeStatic}`);
+
 if (shouldServeStatic) {
-    const staticPath = path.join(__dirname, '..');
-    console.log(`📁 Serving static files from: ${staticPath}`);
-    console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
-    console.log(`🚂 RAILWAY: ${process.env.RAILWAY || 'not set'}`);
-    console.log(`🚂 RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
-    
-    // Serve static files from parent directory (frontend), but exclude /api routes
-    app.use((req, res, next) => {
-        if (req.path.startsWith('/api')) {
-            return next(); // Skip static files for API routes
-        }
-        express.static(staticPath)(req, res, next);
-    });
-    
-    // Serve index.html for all non-API routes (SPA routing)
-    app.get('*', (req, res, next) => {
-        // Skip API routes
-        if (req.path.startsWith('/api')) {
-            return next();
-        }
+    try {
+        const staticPath = path.join(__dirname, '..');
+        console.log(`📁 Serving static files from: ${staticPath}`);
+        
+        // Verify the path exists and index.html is accessible
+        const fs = require('fs');
         const indexPath = path.join(staticPath, 'index.html');
-        console.log(`📄 Serving index.html for: ${req.path}`);
-        res.sendFile(indexPath, (err) => {
-            if (err) {
-                console.error(`Error serving index.html: ${err.message}`);
-                next(err);
+        if (fs.existsSync(indexPath)) {
+            console.log(`✅ Found index.html at: ${indexPath}`);
+        } else {
+            console.warn(`⚠️  index.html not found at: ${indexPath}`);
+        }
+        
+        // Serve static files from parent directory (frontend), but exclude /api routes
+        app.use((req, res, next) => {
+            if (req.path.startsWith('/api')) {
+                return next(); // Skip static files for API routes
             }
+            express.static(staticPath)(req, res, next);
         });
-    });
+        
+        // Serve index.html for all non-API routes (SPA routing)
+        app.get('*', (req, res, next) => {
+            // Skip API routes
+            if (req.path.startsWith('/api')) {
+                return next();
+            }
+            const indexPath = path.join(staticPath, 'index.html');
+            res.sendFile(indexPath, (err) => {
+                if (err) {
+                    console.error(`❌ Error serving index.html for ${req.path}: ${err.message}`);
+                    // Don't call next(err) - just send a 404 or fallback
+                    res.status(404).send('File not found');
+                }
+            });
+        });
+        console.log('✅ Static file serving configured');
+    } catch (error) {
+        console.error('❌ Error configuring static file serving:', error);
+        // Don't throw - let server start anyway
+    }
 } else {
     console.log('⚠️  Static file serving disabled (development mode)');
 }
@@ -690,10 +710,14 @@ async function startServer() {
         db.initDatabase().then(() => {
             databaseReady = true;
             console.log('✅ Database initialized successfully');
+            console.log('🎉 Server fully ready - all systems operational!');
         }).catch((err) => {
             console.error('❌ Database initialization failed:', err);
+            console.error('Error details:', err.message);
+            console.error('Stack:', err.stack);
             // Don't exit - server can still serve some endpoints
             // Database will be retried on first use
+            console.log('⚠️  Server running without database (some features may not work)');
         });
     } catch (error) {
         console.error('❌ Failed to start server:', error);
@@ -742,4 +766,9 @@ process.on('SIGTERM', () => {
     process.exit(0);
 });
 
-startServer();
+// Start the server
+console.log('🎬 Starting server initialization...');
+startServer().catch((err) => {
+    console.error('❌ Fatal error starting server:', err);
+    process.exit(1);
+});
