@@ -557,13 +557,23 @@ app.post('/api/professor/stats', async (req, res) => {
     }
 });
 
-// Health check (also at root for Railway)
+// Health check endpoints (Railway checks these)
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Root health check (some platforms check this)
+app.get('/', (req, res, next) => {
+    // If it's an API request, skip
+    if (req.path === '/' && req.get('Accept') && req.get('Accept').includes('application/json')) {
+        return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
+    }
+    // Otherwise let static file handler deal with it
+    next();
 });
 
 // Serve static files (must be after all API routes)
@@ -613,9 +623,11 @@ async function startServer() {
         
         // Listen on 0.0.0.0 to accept connections from Railway
         const HOST = process.env.HOST || '0.0.0.0';
-        app.listen(PORT, HOST, () => {
+        const server = app.listen(PORT, HOST, () => {
             const env = process.env.NODE_ENV || 'development';
             console.log(`🚀 Backend server running on http://${HOST}:${PORT} (${env})`);
+            console.log(`✅ Server is ready and listening!`);
+            console.log(`🏥 Health check available at: http://${HOST}:${PORT}/health`);
             if (process.env.NODE_ENV === 'production') {
                 console.log(`📁 Serving static files from: ${path.join(__dirname, '..')}`);
             }
