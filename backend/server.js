@@ -22,7 +22,7 @@ const emailService = require('./email-service');
 console.log('✅ All modules loaded');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 
 // Environment variables for OAuth
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -603,25 +603,38 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Root route - explicitly serve index.html for browsers
-// Only return JSON for explicit API health checks
-app.get('/', (req, res, next) => {
+// Root route - serve index.html directly for browsers
+// This ensures Railway routes traffic correctly to our app
+app.get('/', (req, res) => {
     try {
-        console.log(`🌐 [ROOT] Request to / - Accept: ${req.get('Accept') || 'none'}`);
         const acceptHeader = req.get('Accept') || '';
-        // If it's a pure API health check request (only application/json, no other types), return JSON
-        if (acceptHeader === 'application/json' || 
-            (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html') && !acceptHeader.includes('*/*') && acceptHeader.split(',').length === 1)) {
-            console.log(`🌐 [ROOT] Returning JSON response`);
+        // If it's explicitly a JSON-only request (likely a health check), return JSON
+        // Railway health checks don't use Accept headers, so this won't interfere
+        if (acceptHeader === 'application/json' && !acceptHeader.includes('text/html')) {
             return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
         }
-        // For browsers, explicitly serve index.html (don't rely on express.static for root)
-        // The catch-all route below will handle this, but we need to make sure it's called
-        console.log(`🌐 [ROOT] Passing to next middleware (browser request)`);
-        next();
+        
+        // For all other requests (browsers), serve index.html directly
+        const staticPath = path.join(__dirname, '..');
+        const indexPath = path.resolve(staticPath, 'index.html');
+        
+        // Check if file exists
+        const fs = require('fs');
+        if (!fs.existsSync(indexPath)) {
+            console.error(`❌ [ROOT] index.html not found at: ${indexPath}`);
+            return res.status(404).send('Frontend not found. Please check deployment configuration.');
+        }
+        
+        res.sendFile(indexPath, (err) => {
+            if (err) {
+                console.error(`❌ [ROOT] Error serving index.html: ${err.message}`);
+                if (!res.headersSent) {
+                    res.status(500).send('Error loading frontend');
+                }
+            }
+        });
     } catch (error) {
         console.error(`❌ [ROOT] Error in root route: ${error.message}`);
-        console.error(`   Stack: ${error.stack}`);
         if (!res.headersSent) {
             res.status(500).send('Internal server error');
         }
