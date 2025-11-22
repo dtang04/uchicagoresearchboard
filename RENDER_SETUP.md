@@ -19,9 +19,10 @@ Simple deployment guide for UChicago Research Board on Render.
 
 **Settings:**
 - **Root Directory:** Leave empty (Render auto-detects)
-- **Environment:** `Node`
-- **Build Command:** `cd backend && npm install`
-- **Start Command:** `cd backend && node server.js`
+- **Environment:** `Docker`
+- **Dockerfile Path:** `./Dockerfile` (or leave empty - Render will auto-detect)
+- **Build Command:** (Leave empty - Render runs `docker build` automatically)
+- **Start Command:** (Leave empty - Dockerfile CMD handles this)
 
 ### Step 4: Set Environment Variables
 
