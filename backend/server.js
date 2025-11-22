@@ -597,18 +597,26 @@ app.get('/health', (req, res) => {
 // Root route - explicitly serve index.html for browsers
 // Only return JSON for explicit API health checks
 app.get('/', (req, res, next) => {
-    console.log(`🌐 [ROOT] Request to / - Accept: ${req.get('Accept') || 'none'}`);
-    const acceptHeader = req.get('Accept') || '';
-    // If it's a pure API health check request (only application/json, no other types), return JSON
-    if (acceptHeader === 'application/json' || 
-        (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html') && !acceptHeader.includes('*/*') && acceptHeader.split(',').length === 1)) {
-        console.log(`🌐 [ROOT] Returning JSON response`);
-        return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
+    try {
+        console.log(`🌐 [ROOT] Request to / - Accept: ${req.get('Accept') || 'none'}`);
+        const acceptHeader = req.get('Accept') || '';
+        // If it's a pure API health check request (only application/json, no other types), return JSON
+        if (acceptHeader === 'application/json' || 
+            (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html') && !acceptHeader.includes('*/*') && acceptHeader.split(',').length === 1)) {
+            console.log(`🌐 [ROOT] Returning JSON response`);
+            return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
+        }
+        // For browsers, explicitly serve index.html (don't rely on express.static for root)
+        // The catch-all route below will handle this, but we need to make sure it's called
+        console.log(`🌐 [ROOT] Passing to next middleware (browser request)`);
+        next();
+    } catch (error) {
+        console.error(`❌ [ROOT] Error in root route: ${error.message}`);
+        console.error(`   Stack: ${error.stack}`);
+        if (!res.headersSent) {
+            res.status(500).send('Internal server error');
+        }
     }
-    // For browsers, explicitly serve index.html (don't rely on express.static for root)
-    // The catch-all route below will handle this, but we need to make sure it's called
-    console.log(`🌐 [ROOT] Passing to next middleware (browser request)`);
-    next();
 });
 
 // Serve static files (must be after all API routes)
@@ -694,28 +702,47 @@ if (shouldServeStatic) {
         // This must be after the static middleware
         // This catch-all will handle root path and all other non-API routes
         app.get('*', (req, res, next) => {
-            // Skip API routes
-            if (req.path.startsWith('/api')) {
-                return next();
-            }
-            const indexPath = path.resolve(staticPath, 'index.html');
-            console.log(`📄 [CATCH-ALL] Attempting to serve index.html for: ${req.path}`);
-            console.log(`   Full path: ${indexPath}`);
-            console.log(`   Request method: ${req.method}`);
-            console.log(`   Request URL: ${req.url}`);
-            
-            // Use sendFile with absolute path
-            res.sendFile(indexPath, (err) => {
-                if (err) {
-                    console.error(`❌ [CATCH-ALL] Error serving index.html for ${req.path}: ${err.message}`);
-                    console.error(`   Error code: ${err.code}`);
-                    console.error(`   Error stack: ${err.stack}`);
-                    console.error(`   Attempted path: ${indexPath}`);
-                    res.status(404).send(`File not found: ${req.path}`);
-                } else {
-                    console.log(`✅ [CATCH-ALL] Successfully served index.html for: ${req.path}`);
+            try {
+                // Skip API routes
+                if (req.path.startsWith('/api')) {
+                    return next();
                 }
-            });
+                const indexPath = path.resolve(staticPath, 'index.html');
+                console.log(`📄 [CATCH-ALL] Attempting to serve index.html for: ${req.path}`);
+                console.log(`   Full path: ${indexPath}`);
+                console.log(`   Request method: ${req.method}`);
+                console.log(`   Request URL: ${req.url}`);
+                
+                // Check if file exists before trying to send it
+                const fs = require('fs');
+                if (!fs.existsSync(indexPath)) {
+                    console.error(`❌ [CATCH-ALL] index.html does not exist at: ${indexPath}`);
+                    return res.status(404).send(`File not found: index.html`);
+                }
+                
+                // Use sendFile with absolute path and proper error handling
+                res.sendFile(indexPath, (err) => {
+                    if (err) {
+                        // Don't send response if headers already sent
+                        if (res.headersSent) {
+                            console.error(`❌ [CATCH-ALL] Error after headers sent: ${err.message}`);
+                            return;
+                        }
+                        console.error(`❌ [CATCH-ALL] Error serving index.html for ${req.path}: ${err.message}`);
+                        console.error(`   Error code: ${err.code}`);
+                        console.error(`   Attempted path: ${indexPath}`);
+                        res.status(404).send(`File not found: ${req.path}`);
+                    } else {
+                        console.log(`✅ [CATCH-ALL] Successfully served index.html for: ${req.path}`);
+                    }
+                });
+            } catch (error) {
+                console.error(`❌ [CATCH-ALL] Exception in catch-all route: ${error.message}`);
+                console.error(`   Stack: ${error.stack}`);
+                if (!res.headersSent) {
+                    res.status(500).send('Internal server error');
+                }
+            }
         });
         console.log('✅ Static file serving configured');
     } catch (error) {
@@ -796,16 +823,29 @@ async function startServer() {
     }
 }
 
-// Handle uncaught errors
+// Handle uncaught errors - but don't exit immediately in production
+// This allows Railway to see the error and restart gracefully
 process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
+    console.error('Error message:', error.message);
     console.error('Error stack:', error.stack);
-    process.exit(1);
+    // In production, log and let Railway handle restart
+    // Don't exit immediately - let the process die naturally
+    if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+    }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-    process.exit(1);
+    console.error('❌ Unhandled Rejection at:', promise);
+    console.error('Reason:', reason);
+    if (reason instanceof Error) {
+        console.error('Error stack:', reason.stack);
+    }
+    // In production, log but don't exit immediately
+    if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+    }
 });
 
 // Handle SIGTERM gracefully (Railway sends this to stop containers)
