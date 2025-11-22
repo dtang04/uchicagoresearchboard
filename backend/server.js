@@ -686,7 +686,7 @@ async function startServer() {
 }
 
 // Handle uncaught errors - but don't exit immediately in production
-// This allows Railway to see the error and restart gracefully
+// This allows process managers (Render, etc.) to see the error and restart gracefully
 process.on('uncaughtException', (error) => {
     console.error('❌ Uncaught Exception:', error);
     console.error('Error message:', error.message);
