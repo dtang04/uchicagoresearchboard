@@ -30,6 +30,15 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'your-session-secret-change-in-production';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
+// Request logging middleware - MUST be first to catch all requests
+app.use((req, res, next) => {
+    console.log(`📥 [REQUEST] ${req.method} ${req.path}`);
+    console.log(`   URL: ${req.url}`);
+    console.log(`   Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`   IP: ${req.ip}`);
+    next();
+});
+
 // Middleware
 app.use(cors({
     origin: process.env.NODE_ENV === 'production' 
