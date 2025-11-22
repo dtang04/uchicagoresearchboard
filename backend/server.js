@@ -36,37 +36,29 @@ let databaseReady = false;
 
 // Health check endpoints - MUST be FIRST, before ANY middleware
 // Railway health checks need immediate response without any processing
+// These MUST respond synchronously and complete the response
 app.get('/health', (req, res) => {
-    console.log('🏥 [HEALTH] /health check received');
-    res.status(200).json({ 
-        status: 'ok',
-        service: 'uchicago-research-board',
-        timestamp: new Date().toISOString(),
-        ready: serverReady,
-        database: databaseReady ? 'ready' : 'initializing'
-    });
+    console.log('🏥 [HEALTH] /health check - responding with ok');
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('ok');
+    console.log('✅ [HEALTH] /health response completed');
 });
 
 app.get('/api/health', (req, res) => {
-    console.log('🏥 [HEALTH] /api/health check received');
     res.status(200).json({ 
         status: 'ok',
         service: 'uchicago-research-board',
-        timestamp: new Date().toISOString(),
         ready: serverReady,
         database: databaseReady ? 'ready' : 'initializing'
     });
 });
 
-// Request logging middleware - MUST be after health checks
+// Request logging middleware - runs after health checks
 app.use((req, res, next) => {
-    // Skip logging for health checks (already logged above)
-    if (req.path !== '/health' && req.path !== '/api/health') {
-        console.log(`📥 [REQUEST] ${req.method} ${req.path}`);
-        console.log(`   URL: ${req.url}`);
-        console.log(`   Headers: ${JSON.stringify(req.headers)}`);
-        console.log(`   IP: ${req.ip}`);
-    }
+    console.log(`📥 [REQUEST] ${req.method} ${req.path}`);
+    console.log(`   URL: ${req.url}`);
+    console.log(`   Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`   IP: ${req.ip}`);
     next();
 });
 
