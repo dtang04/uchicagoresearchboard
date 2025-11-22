@@ -30,12 +30,43 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'your-session-secret-change-in-production';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-// Request logging middleware - MUST be first to catch all requests
+// Health check state tracking
+let serverReady = false;
+let databaseReady = false;
+
+// Health check endpoints - MUST be FIRST, before ANY middleware
+// Railway health checks need immediate response without any processing
+app.get('/health', (req, res) => {
+    console.log('🏥 [HEALTH] /health check received');
+    res.status(200).json({ 
+        status: 'ok',
+        service: 'uchicago-research-board',
+        timestamp: new Date().toISOString(),
+        ready: serverReady,
+        database: databaseReady ? 'ready' : 'initializing'
+    });
+});
+
+app.get('/api/health', (req, res) => {
+    console.log('🏥 [HEALTH] /api/health check received');
+    res.status(200).json({ 
+        status: 'ok',
+        service: 'uchicago-research-board',
+        timestamp: new Date().toISOString(),
+        ready: serverReady,
+        database: databaseReady ? 'ready' : 'initializing'
+    });
+});
+
+// Request logging middleware - MUST be after health checks
 app.use((req, res, next) => {
-    console.log(`📥 [REQUEST] ${req.method} ${req.path}`);
-    console.log(`   URL: ${req.url}`);
-    console.log(`   Headers: ${JSON.stringify(req.headers)}`);
-    console.log(`   IP: ${req.ip}`);
+    // Skip logging for health checks (already logged above)
+    if (req.path !== '/health' && req.path !== '/api/health') {
+        console.log(`📥 [REQUEST] ${req.method} ${req.path}`);
+        console.log(`   URL: ${req.url}`);
+        console.log(`   Headers: ${JSON.stringify(req.headers)}`);
+        console.log(`   IP: ${req.ip}`);
+    }
     next();
 });
 
@@ -577,34 +608,7 @@ app.post('/api/professor/stats', async (req, res) => {
     }
 });
 
-// Health check endpoints (Railway checks these) - MUST be before static file serving
-// These need to respond immediately, even before database is ready
-// Railway will kill the container if health checks don't return 200 OK quickly
-let serverReady = false;
-let databaseReady = false;
-
-// Health check endpoints - respond immediately for Railway
-app.get('/api/health', (req, res) => {
-    console.log('🏥 [HEALTH] /api/health check');
-    res.status(200).json({ 
-        status: 'ok',
-        service: 'uchicago-research-board',
-        timestamp: new Date().toISOString(),
-        ready: serverReady,
-        database: databaseReady ? 'ready' : 'initializing'
-    });
-});
-
-app.get('/health', (req, res) => {
-    console.log('🏥 [HEALTH] /health check');
-    res.status(200).json({ 
-        status: 'ok',
-        service: 'uchicago-research-board',
-        timestamp: new Date().toISOString(),
-        ready: serverReady,
-        database: databaseReady ? 'ready' : 'initializing'
-    });
-});
+// Health check endpoints are now defined at the very top, before all middleware
 
 // Root route - serve index.html directly for browsers
 // This ensures Railway routes traffic correctly to our app
