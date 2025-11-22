@@ -595,20 +595,20 @@ app.get('/health', (req, res) => {
 });
 
 // Root health check (some platforms check this)
-// Only return JSON if explicitly requested, otherwise let static files handle it
+// Only return JSON if explicitly requested with Accept: application/json header
+// Otherwise, let static file middleware serve index.html
 app.get('/', (req, res, next) => {
-    // If it's explicitly an API request (Accept: application/json only, no HTML), return JSON
     const acceptHeader = req.get('Accept') || '';
-    // Check if it's a pure API request (JSON only, no HTML preference)
-    const isJsonOnlyRequest = acceptHeader.includes('application/json') && 
-                               !acceptHeader.includes('text/html') &&
-                               !acceptHeader.includes('*/*');
-    
-    if (isJsonOnlyRequest) {
+    // Only return JSON if it's a pure API request (no text/html in Accept header)
+    // Browsers send text/html, so they'll fall through to static file serving
+    if (acceptHeader.includes('application/json') && 
+        !acceptHeader.includes('text/html') && 
+        !acceptHeader.includes('*/*') &&
+        acceptHeader.split(',').length === 1) {
+        // Pure JSON request - return API status
         return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
     }
-    // For browser requests, let static file handler serve index.html
-    // Don't call next() here - let the static file middleware handle it
+    // For all other requests (browsers), let static file middleware handle it
     next();
 });
 
@@ -640,10 +640,33 @@ if (shouldServeStatic) {
         // Verify the path exists and index.html is accessible
         const fs = require('fs');
         const indexPath = path.join(staticPath, 'index.html');
-        if (fs.existsSync(indexPath)) {
-            console.log(`✅ Found index.html at: ${indexPath}`);
+        const absoluteIndexPath = path.resolve(indexPath);
+        
+        console.log(`🔍 Checking for index.html:`);
+        console.log(`   Relative path: ${indexPath}`);
+        console.log(`   Absolute path: ${absoluteIndexPath}`);
+        console.log(`   __dirname: ${__dirname}`);
+        console.log(`   staticPath: ${staticPath}`);
+        
+        if (fs.existsSync(absoluteIndexPath)) {
+            console.log(`✅ Found index.html at: ${absoluteIndexPath}`);
+            // List files in the static directory to help debug
+            try {
+                const files = fs.readdirSync(staticPath);
+                console.log(`📋 Files in static directory (${staticPath}):`, files.slice(0, 10).join(', '), files.length > 10 ? `... (${files.length} total)` : '');
+            } catch (err) {
+                console.warn(`⚠️  Could not list files in static directory: ${err.message}`);
+            }
         } else {
-            console.warn(`⚠️  index.html not found at: ${indexPath}`);
+            console.error(`❌ index.html NOT FOUND at: ${absoluteIndexPath}`);
+            console.error(`   This is why the frontend isn't loading!`);
+            // Try to find where index.html actually is
+            try {
+                const files = fs.readdirSync(staticPath);
+                console.log(`📋 Files in static directory:`, files.join(', '));
+            } catch (err) {
+                console.error(`   Cannot read directory ${staticPath}: ${err.message}`);
+            }
         }
         
         // Serve static files from parent directory (frontend), but exclude /api routes
@@ -651,14 +674,17 @@ if (shouldServeStatic) {
         const absoluteStaticPath = path.resolve(staticPath);
         console.log(`📂 Absolute static path: ${absoluteStaticPath}`);
         
-        // Register static file middleware (but skip /api routes)
+        // Register static file middleware properly
+        // Skip /api routes from static file serving
         app.use((req, res, next) => {
             if (req.path.startsWith('/api')) {
                 return next(); // Skip static files for API routes
             }
-            // Use express.static middleware
-            express.static(absoluteStaticPath)(req, res, next);
+            next(); // Continue to static middleware
         });
+        
+        // Serve static files (CSS, JS, images, etc.)
+        app.use(express.static(absoluteStaticPath));
         
         // Serve index.html for all non-API routes (SPA routing)
         // This must be after the static middleware
