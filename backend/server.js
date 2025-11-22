@@ -583,10 +583,12 @@ app.post('/api/professor/stats', async (req, res) => {
 let serverReady = false;
 let databaseReady = false;
 
+// Health check endpoints - respond immediately for Railway
 app.get('/api/health', (req, res) => {
-    // Always return 200 OK - Railway needs this to keep the container alive
+    console.log('🏥 [HEALTH] /api/health check');
     res.status(200).json({ 
         status: 'ok',
+        service: 'uchicago-research-board',
         timestamp: new Date().toISOString(),
         ready: serverReady,
         database: databaseReady ? 'ready' : 'initializing'
@@ -594,9 +596,10 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/health', (req, res) => {
-    // Always return 200 OK - Railway needs this to keep the container alive
+    console.log('🏥 [HEALTH] /health check');
     res.status(200).json({ 
         status: 'ok',
+        service: 'uchicago-research-board',
         timestamp: new Date().toISOString(),
         ready: serverReady,
         database: databaseReady ? 'ready' : 'initializing'
@@ -606,17 +609,21 @@ app.get('/health', (req, res) => {
 // Root route - serve index.html directly for browsers
 // This ensures Railway routes traffic correctly to our app
 app.get('/', (req, res) => {
+    console.log('🌐 [ROOT] Request to / - Serving index.html');
     try {
         const acceptHeader = req.get('Accept') || '';
         // If it's explicitly a JSON-only request (likely a health check), return JSON
         // Railway health checks don't use Accept headers, so this won't interfere
         if (acceptHeader === 'application/json' && !acceptHeader.includes('text/html')) {
+            console.log('🌐 [ROOT] Returning JSON (JSON-only request)');
             return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
         }
         
         // For all other requests (browsers), serve index.html directly
         const staticPath = path.join(__dirname, '..');
         const indexPath = path.resolve(staticPath, 'index.html');
+        
+        console.log(`🌐 [ROOT] Attempting to serve index.html from: ${indexPath}`);
         
         // Check if file exists
         const fs = require('fs');
@@ -625,16 +632,20 @@ app.get('/', (req, res) => {
             return res.status(404).send('Frontend not found. Please check deployment configuration.');
         }
         
+        console.log(`✅ [ROOT] index.html found, sending file...`);
         res.sendFile(indexPath, (err) => {
             if (err) {
                 console.error(`❌ [ROOT] Error serving index.html: ${err.message}`);
                 if (!res.headersSent) {
                     res.status(500).send('Error loading frontend');
                 }
+            } else {
+                console.log(`✅ [ROOT] Successfully served index.html`);
             }
         });
     } catch (error) {
         console.error(`❌ [ROOT] Error in root route: ${error.message}`);
+        console.error(`   Stack: ${error.stack}`);
         if (!res.headersSent) {
             res.status(500).send('Internal server error');
         }
