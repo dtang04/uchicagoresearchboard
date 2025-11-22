@@ -586,12 +586,18 @@ app.get('/health', (req, res) => {
 // Root health check (some platforms check this)
 // Only return JSON if explicitly requested, otherwise let static files handle it
 app.get('/', (req, res, next) => {
-    // If it's explicitly an API request (Accept: application/json), return JSON
+    // If it's explicitly an API request (Accept: application/json only, no HTML), return JSON
     const acceptHeader = req.get('Accept') || '';
-    if (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html')) {
+    // Check if it's a pure API request (JSON only, no HTML preference)
+    const isJsonOnlyRequest = acceptHeader.includes('application/json') && 
+                               !acceptHeader.includes('text/html') &&
+                               !acceptHeader.includes('*/*');
+    
+    if (isJsonOnlyRequest) {
         return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
     }
-    // Otherwise let static file handler serve index.html
+    // For browser requests, let static file handler serve index.html
+    // Don't call next() here - let the static file middleware handle it
     next();
 });
 
@@ -630,25 +636,36 @@ if (shouldServeStatic) {
         }
         
         // Serve static files from parent directory (frontend), but exclude /api routes
+        // Use absolute path to ensure it works correctly
+        const absoluteStaticPath = path.resolve(staticPath);
+        console.log(`📂 Absolute static path: ${absoluteStaticPath}`);
+        
+        // Register static file middleware (but skip /api routes)
         app.use((req, res, next) => {
             if (req.path.startsWith('/api')) {
                 return next(); // Skip static files for API routes
             }
-            express.static(staticPath)(req, res, next);
+            // Use express.static middleware
+            express.static(absoluteStaticPath)(req, res, next);
         });
         
         // Serve index.html for all non-API routes (SPA routing)
+        // This must be after the static middleware
         app.get('*', (req, res, next) => {
             // Skip API routes
             if (req.path.startsWith('/api')) {
                 return next();
             }
-            const indexPath = path.join(staticPath, 'index.html');
+            const indexPath = path.resolve(staticPath, 'index.html');
+            console.log(`📄 Attempting to serve index.html for: ${req.path}`);
             res.sendFile(indexPath, (err) => {
                 if (err) {
                     console.error(`❌ Error serving index.html for ${req.path}: ${err.message}`);
-                    // Don't call next(err) - just send a 404 or fallback
-                    res.status(404).send('File not found');
+                    console.error(`   Attempted path: ${indexPath}`);
+                    // Send a proper error response
+                    res.status(404).send(`File not found: ${req.path}`);
+                } else {
+                    console.log(`✅ Successfully served index.html for: ${req.path}`);
                 }
             });
         });
