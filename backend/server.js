@@ -584,22 +584,29 @@ app.get('/health', (req, res) => {
 });
 
 // Root health check (some platforms check this)
+// Only return JSON if explicitly requested, otherwise let static files handle it
 app.get('/', (req, res, next) => {
-    // If it's an API request, skip
-    if (req.path === '/' && req.get('Accept') && req.get('Accept').includes('application/json')) {
+    // If it's explicitly an API request (Accept: application/json), return JSON
+    const acceptHeader = req.get('Accept') || '';
+    if (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html')) {
         return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
     }
-    // Otherwise let static file handler deal with it
+    // Otherwise let static file handler serve index.html
     next();
 });
 
 // Serve static files (must be after all API routes)
 // Always serve in production, or if RAILWAY environment is set (Railway deployment)
-const shouldServeStatic = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+// Railway automatically sets RAILWAY environment variable, and we also check RAILWAY_ENVIRONMENT
+// Default to serving static files unless explicitly in development mode
+const isDevelopment = process.env.NODE_ENV === 'development' && !process.env.RAILWAY && !process.env.RAILWAY_ENVIRONMENT;
+const shouldServeStatic = !isDevelopment || process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RAILWAY_ENVIRONMENT;
+
 if (shouldServeStatic) {
     const staticPath = path.join(__dirname, '..');
     console.log(`📁 Serving static files from: ${staticPath}`);
-    console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+    console.log(`🚂 RAILWAY: ${process.env.RAILWAY || 'not set'}`);
     console.log(`🚂 RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
     
     // Serve static files from parent directory (frontend), but exclude /api routes
@@ -625,6 +632,8 @@ if (shouldServeStatic) {
             }
         });
     });
+} else {
+    console.log('⚠️  Static file serving disabled (development mode)');
 }
 
 // Start server
