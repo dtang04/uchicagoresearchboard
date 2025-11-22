@@ -594,21 +594,17 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Root health check (some platforms check this)
-// Only return JSON if explicitly requested with Accept: application/json header
-// Otherwise, let static file middleware serve index.html
+// Root route - explicitly serve index.html for browsers
+// Only return JSON for explicit API health checks
 app.get('/', (req, res, next) => {
     const acceptHeader = req.get('Accept') || '';
-    // Only return JSON if it's a pure API request (no text/html in Accept header)
-    // Browsers send text/html, so they'll fall through to static file serving
-    if (acceptHeader.includes('application/json') && 
-        !acceptHeader.includes('text/html') && 
-        !acceptHeader.includes('*/*') &&
-        acceptHeader.split(',').length === 1) {
-        // Pure JSON request - return API status
+    // If it's a pure API health check request (only application/json, no other types), return JSON
+    if (acceptHeader === 'application/json' || 
+        (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html') && !acceptHeader.includes('*/*') && acceptHeader.split(',').length === 1)) {
         return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
     }
-    // For all other requests (browsers), let static file middleware handle it
+    // For browsers, explicitly serve index.html (don't rely on express.static for root)
+    // The catch-all route below will handle this, but we need to make sure it's called
     next();
 });
 
@@ -683,8 +679,9 @@ if (shouldServeStatic) {
             next(); // Continue to static middleware
         });
         
-        // Serve static files (CSS, JS, images, etc.)
-        app.use(express.static(absoluteStaticPath));
+        // Serve static files (CSS, JS, images, etc.) - but NOT index.html for root
+        // We'll handle index.html explicitly in the catch-all route
+        app.use(express.static(absoluteStaticPath, { index: false }));
         
         // Serve index.html for all non-API routes (SPA routing)
         // This must be after the static middleware
@@ -695,11 +692,12 @@ if (shouldServeStatic) {
             }
             const indexPath = path.resolve(staticPath, 'index.html');
             console.log(`📄 Attempting to serve index.html for: ${req.path}`);
+            console.log(`   Full path: ${indexPath}`);
             res.sendFile(indexPath, (err) => {
                 if (err) {
                     console.error(`❌ Error serving index.html for ${req.path}: ${err.message}`);
+                    console.error(`   Error code: ${err.code}`);
                     console.error(`   Attempted path: ${indexPath}`);
-                    // Send a proper error response
                     res.status(404).send(`File not found: ${req.path}`);
                 } else {
                     console.log(`✅ Successfully served index.html for: ${req.path}`);
