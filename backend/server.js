@@ -546,8 +546,12 @@ app.post('/api/professor/stats', async (req, res) => {
     }
 });
 
-// Health check
+// Health check (also at root for Railway)
 app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -648,6 +652,23 @@ process.on('uncaughtException', (error) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
     process.exit(1);
+});
+
+// Handle SIGTERM gracefully (Railway sends this to stop containers)
+process.on('SIGTERM', () => {
+    console.log('🛑 SIGTERM received, shutting down gracefully...');
+    if (db && db.close) {
+        db.close((err) => {
+            if (err) {
+                console.error('Error closing database:', err);
+            } else {
+                console.log('✅ Database closed');
+            }
+            process.exit(0);
+        });
+    } else {
+        process.exit(0);
+    }
 });
 
 startServer();
