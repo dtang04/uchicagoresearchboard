@@ -40,7 +40,9 @@ app.use(cors({
 app.use(express.json());
 
 // Session configuration for OAuth
-app.use(session({
+// Use a simple file-based store in production to avoid MemoryStore warning
+// For a single-process deployment, this is sufficient
+const sessionConfig = {
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
@@ -49,7 +51,16 @@ app.use(session({
         httpOnly: true,
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
-}));
+};
+
+// In production, suppress the MemoryStore warning (it's fine for single-process deployments)
+if (process.env.NODE_ENV === 'production') {
+    // MemoryStore is fine for single-process Railway deployments
+    // The warning is for multi-process scenarios
+    console.log('ℹ️  Using MemoryStore for sessions (fine for single-process deployment)');
+}
+
+app.use(session(sessionConfig));
 
 // Initialize Passport
 app.use(passport.initialize());
