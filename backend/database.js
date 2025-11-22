@@ -140,14 +140,20 @@ function createTables() {
                             // Ignore error if column already exists
                             db.run(`ALTER TABLE professors ADD COLUMN num_published_papers INTEGER`, (err3) => {
                                 // Ignore error if column already exists
-                                // Create indexes
-                                db.run(`CREATE INDEX IF NOT EXISTS idx_professors_department ON professors(department_id)`, () => {
-                                    db.run(`CREATE INDEX IF NOT EXISTS idx_views_professor ON professor_views(professor_id)`, () => {
-                                        db.run(`CREATE INDEX IF NOT EXISTS idx_clicks_professor ON professor_clicks(professor_id)`, () => {
-                                            db.run(`CREATE INDEX IF NOT EXISTS idx_views_department ON department_views(department_id)`, () => {
-                                                db.run(`CREATE INDEX IF NOT EXISTS idx_starred_user ON starred_professors(user_id)`, () => {
-                                                    db.run(`CREATE INDEX IF NOT EXISTS idx_starred_professor ON starred_professors(professor_id)`, () => {
-                                                        resolve();
+                                db.run(`ALTER TABLE professors ADD COLUMN is_recruiting INTEGER DEFAULT 0`, (err4) => {
+                                    // Ignore error if column already exists
+                                    db.run(`ALTER TABLE professors ADD COLUMN is_translucent INTEGER DEFAULT 0`, (err5) => {
+                                        // Ignore error if column already exists
+                                        // Create indexes
+                                        db.run(`CREATE INDEX IF NOT EXISTS idx_professors_department ON professors(department_id)`, () => {
+                                            db.run(`CREATE INDEX IF NOT EXISTS idx_views_professor ON professor_views(professor_id)`, () => {
+                                                db.run(`CREATE INDEX IF NOT EXISTS idx_clicks_professor ON professor_clicks(professor_id)`, () => {
+                                                    db.run(`CREATE INDEX IF NOT EXISTS idx_views_department ON department_views(department_id)`, () => {
+                                                        db.run(`CREATE INDEX IF NOT EXISTS idx_starred_user ON starred_professors(user_id)`, () => {
+                                                            db.run(`CREATE INDEX IF NOT EXISTS idx_starred_professor ON starred_professors(professor_id)`, () => {
+                                                                resolve();
+                                                            });
+                                                        });
                                                     });
                                                 });
                                             });
@@ -243,7 +249,9 @@ function getProfessorsByDepartment(departmentName) {
                         researchArea: prof.research_area,
                         numUndergradResearchers: prof.num_undergrad_researchers,
                         numLabMembers: prof.num_lab_members,
-                        numPublishedPapers: prof.num_published_papers
+                        numPublishedPapers: prof.num_published_papers,
+                        isRecruiting: prof.is_recruiting === 1 || prof.is_recruiting === true,
+                        isTranslucent: prof.is_translucent === 1 || prof.is_translucent === true
                     }));
                     resolve(results);
                 }
@@ -261,8 +269,8 @@ async function addProfessor(departmentName, professor) {
     return new Promise((resolve, reject) => {
         db.run(`
             INSERT INTO professors 
-            (department_id, name, title, lab, lab_website, email, research_area, num_undergrad_researchers, num_lab_members, num_published_papers)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (department_id, name, title, lab, lab_website, email, research_area, num_undergrad_researchers, num_lab_members, num_published_papers, is_recruiting, is_translucent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             dept.id,
             professor.name,
@@ -273,7 +281,9 @@ async function addProfessor(departmentName, professor) {
             professor.researchArea || null,
             professor.numUndergradResearchers || null,
             professor.numLabMembers || null,
-            professor.numPublishedPapers || null
+            professor.numPublishedPapers || null,
+            professor.isRecruiting ? 1 : 0,
+            professor.isTranslucent ? 1 : 0
         ], function(err) {
             if (err) reject(err);
             else resolve(this.lastID);
@@ -591,6 +601,27 @@ async function updateProfessorStats(professorName, departmentName, stats) {
 }
 
 /**
+ * Update professor research area
+ */
+async function updateProfessorResearchArea(professorName, departmentName, researchArea) {
+    const prof = await getProfessorByNameAndDepartment(professorName, departmentName);
+    if (!prof) {
+        throw new Error('Professor not found');
+    }
+    
+    return new Promise((resolve, reject) => {
+        db.run(`
+            UPDATE professors 
+            SET research_area = ?
+            WHERE id = ?
+        `, [researchArea, prof.id], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes);
+        });
+    });
+}
+
+/**
  * User management functions
  */
 
@@ -758,6 +789,43 @@ async function getStarredProfessorIds(userId) {
     });
 }
 
+/**
+ * Delete professor by name and department
+ */
+async function deleteProfessor(professorName, departmentName) {
+    const prof = await getProfessorByNameAndDepartment(professorName, departmentName);
+    if (!prof) {
+        throw new Error('Professor not found');
+    }
+    
+    return new Promise((resolve, reject) => {
+        // First delete related records (starred_professors, views, clicks)
+        db.run('DELETE FROM starred_professors WHERE professor_id = ?', [prof.id], (err1) => {
+            if (err1) {
+                reject(err1);
+                return;
+            }
+            db.run('DELETE FROM professor_views WHERE professor_id = ?', [prof.id], (err2) => {
+                if (err2) {
+                    reject(err2);
+                    return;
+                }
+                db.run('DELETE FROM professor_clicks WHERE professor_id = ?', [prof.id], (err3) => {
+                    if (err3) {
+                        reject(err3);
+                        return;
+                    }
+                    // Finally delete the professor
+                    db.run('DELETE FROM professors WHERE id = ?', [prof.id], function(err4) {
+                        if (err4) reject(err4);
+                        else resolve(this.changes);
+                    });
+                });
+            });
+        });
+    });
+}
+
 module.exports = {
     initDatabase,
     getDatabase,
@@ -766,6 +834,7 @@ module.exports = {
     createOrGetDepartment,
     getProfessorsByDepartment,
     addProfessor,
+    deleteProfessor,
     getTrendingLabs,
     setTrendingLabs,
     trackProfessorView,
@@ -775,6 +844,7 @@ module.exports = {
     getProfessorAnalytics,
     getAllAnalytics,
     updateProfessorStats,
+    updateProfessorResearchArea,
     getUserByEmail,
     createUser,
     getUserById,

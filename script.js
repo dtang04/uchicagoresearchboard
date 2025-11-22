@@ -218,6 +218,7 @@ async function displayResults(query, professors) {
     // Group regular professors by research area (if available)
     const groupedByArea = groupProfessorsByArea(regularProfessors);
     
+    // 1. Department Header
     let resultsHTML = `
         <div class="results-header">
             <h2>
@@ -233,17 +234,64 @@ async function displayResults(query, professors) {
         </div>
     `;
     
-            // Display trending labs section at the top if there are any
-            if (trendingLabs.length > 0) {
-                resultsHTML += `
-                    <div class="research-area-section trending-labs-section">
-                        <h3 class="research-area-header trending-labs-header">🔥 Trending Labs</h3>
-                        <div class="professors-grid">
-                            ${trendingLabs.map(prof => createProfessorCard(prof, normalizedDepartmentName)).join('')}
-                        </div>
-                    </div>
-                `;
-            }
+    // 2. Total Stats (for all departments)
+    const totals = professors.reduce((acc, prof) => {
+        acc.labMembers += prof.numLabMembers || 0;
+        acc.undergrads += prof.numUndergradResearchers || 0;
+        acc.publications += prof.numPublishedPapers || 0;
+        return acc;
+    }, { labMembers: 0, undergrads: 0, publications: 0 });
+    
+    resultsHTML += `
+        <div class="department-stats-section">
+            <div class="stats-card-combined">
+                <div class="stat-item-combined">
+                    <div class="stat-label">Lab Members</div>
+                    <div class="stat-number" data-stat="lab-members">${totals.labMembers}</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item-combined">
+                    <div class="stat-label">Undergraduate Researchers</div>
+                    <div class="stat-number" data-stat="undergrads">${totals.undergrads}</div>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item-combined">
+                    <div class="stat-label">Published Papers</div>
+                    <div class="stat-number" data-stat="publications">${totals.publications}</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // 3. Local Programs (e.g., Math REU)
+    if (normalizedDepartmentName === 'mathematics') {
+        resultsHTML += `
+            <div class="reu-program-section">
+                <h3 class="reu-program-header">Math REU Program</h3>
+                <div class="reu-program-content">
+                    <p class="reu-program-description">Explore summer research opportunities through the University of Chicago Mathematics REU Program.</p>
+                    <a href="https://math.uchicago.edu/~may/REU2025/" target="_blank" rel="noopener noreferrer" class="reu-program-link">
+                        <span>Learn More</span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+    
+    // 4. Trending Labs
+    if (trendingLabs.length > 0) {
+        resultsHTML += `
+            <div class="research-area-section trending-labs-section">
+                <h3 class="research-area-header trending-labs-header">🔥 Trending Labs</h3>
+                <div class="professors-grid">
+                    ${trendingLabs.map(prof => createProfessorCard(prof, normalizedDepartmentName)).join('')}
+                </div>
+            </div>
+        `;
+    }
     
     // If we have research areas, display grouped; otherwise display as grid
     if (groupedByArea && Object.keys(groupedByArea).length > 0) {
@@ -703,9 +751,29 @@ function groupProfessorsByArea(professors) {
 function createProfessorCard(professor, departmentName) {
     const cardId = `prof-${professor.name.replace(/\s+/g, '-').toLowerCase()}-${departmentName.replace(/\s+/g, '-').toLowerCase()}`;
     
+    // Check if mathematics department - use "Group" instead of "Lab"
+    const isMathematics = departmentName.toLowerCase() === 'mathematics';
+    const groupType = isMathematics ? 'Group' : 'Lab';
+    const groupLabel = isMathematics ? 'Research Group' : 'Research Lab';
+    
+    // Get lab/group name, or generate from last name if null/empty
+    let labName = professor.lab;
+    if (!labName || labName.trim() === '') {
+        // Extract last name from professor name
+        const nameParts = professor.name.trim().split(/\s+/);
+        const lastName = nameParts[nameParts.length - 1];
+        labName = `${lastName} ${groupType}`;
+    } else if (isMathematics && labName.toLowerCase().endsWith(' lab')) {
+        // Replace "Lab" with "Group" in existing lab names for mathematics
+        labName = labName.replace(/ lab$/i, ` ${groupType}`);
+    } else if (isMathematics && labName.toLowerCase().endsWith('lab')) {
+        // Handle case without space
+        labName = labName.replace(/lab$/i, groupType);
+    }
+    
     const labLink = professor.labWebsite 
-        ? `<a href="${professor.labWebsite}" target="_blank" rel="noopener noreferrer" class="lab-link" data-click-type="lab-website" data-professor="${professor.name}" data-department="${departmentName}">${professor.lab}</a>`
-        : `<span class="lab-name">${professor.lab}</span>`;
+        ? `<a href="${professor.labWebsite}" target="_blank" rel="noopener noreferrer" class="lab-link" data-click-type="lab-website" data-professor="${professor.name}" data-department="${departmentName}">${labName}</a>`
+        : `<span class="lab-name">${labName}</span>`;
     
     const emailSection = professor.email && professor.email.trim() !== ''
         ? `<div class="email-section">
@@ -714,8 +782,35 @@ function createProfessorCard(professor, departmentName) {
         </div>`
         : '';
     
+    // Check if professor should be translucent (0 lab members OR manually marked as translucent)
+    const hasZeroLabMembers = (professor.numLabMembers || 0) === 0;
+    const isManuallyTranslucent = professor.isTranslucent === true || professor.isTranslucent === 1;
+    const translucentClass = (hasZeroLabMembers || isManuallyTranslucent) ? 'card-translucent' : '';
+    
+    // Debug logging for translucent cards
+    if (professor.name && professor.name.includes('Gunawi')) {
+        console.log('[DEBUG] Gunawi card data:', {
+            name: professor.name,
+            isTranslucent: professor.isTranslucent,
+            isTranslucentType: typeof professor.isTranslucent,
+            numLabMembers: professor.numLabMembers,
+            hasZeroLabMembers,
+            isManuallyTranslucent,
+            translucentClass
+        });
+    }
+    
+    // Check if professor is explicitly recruiting (from database flag or hardcoded names for backwards compatibility)
+    const nameLower = professor.name.toLowerCase();
+    const isRecruiting = professor.isRecruiting || 
+                        (nameLower.includes('claire') && nameLower.includes('donnat')) ||
+                        (nameLower.includes('dacheng') && nameLower.includes('xiu')) ||
+                        (nameLower.includes('mihai') && nameLower.includes('anitescu'));
+    const recruitingStripe = isRecruiting ? '<div class="recruiting-stripe"></div>' : '';
+    
     return `
-        <div class="professor-card" data-professor="${professor.name}" data-department="${departmentName}" data-click-type="card" id="${cardId}">
+        <div class="professor-card ${translucentClass}" data-professor="${professor.name}" data-department="${departmentName}" data-click-type="card" id="${cardId}">
+            ${recruitingStripe}
             <div class="star-icon-container" data-professor="${professor.name}" data-department="${departmentName}">
                 <svg class="star-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
@@ -726,7 +821,7 @@ function createProfessorCard(professor, departmentName) {
                     <div class="professor-name">${professor.name}</div>
                     <div class="professor-title">${professor.title}</div>
                     <div class="lab-section">
-                        <div class="lab-label">Research Lab</div>
+                        <div class="lab-label">${groupLabel}</div>
                         ${labLink}
                     </div>
                     ${emailSection}

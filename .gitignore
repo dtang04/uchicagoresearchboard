@@ -3,7 +3,8 @@ node_modules/
 backend/node_modules/
 
 # Database files (keep structure, ignore data in production)
-backend/database.db
+# Temporarily commented for deployment - will uncomment after
+# backend/database.db
 backend/database.db-journal
 
 # Environment variables

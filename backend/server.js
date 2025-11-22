@@ -4,13 +4,14 @@ const cors = require('cors');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const path = require('path');
 const db = require('./database');
 const statsService = require('./stats-service');
 const auth = require('./auth-service');
 const emailService = require('./email-service');
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Environment variables for OAuth
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
@@ -20,7 +21,9 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 // Middleware
 app.use(cors({
-    origin: FRONTEND_URL,
+    origin: process.env.NODE_ENV === 'production' 
+        ? (process.env.FRONTEND_URL || '*') 
+        : FRONTEND_URL,
     credentials: true
 }));
 app.use(express.json());
@@ -548,13 +551,27 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve static files in production (must be after all API routes)
+if (process.env.NODE_ENV === 'production') {
+    // Serve static files from parent directory (frontend)
+    app.use(express.static(path.join(__dirname, '..')));
+    // Serve index.html for all non-API routes (SPA routing)
+    app.get('*', (req, res) => {
+        res.sendFile(path.join(__dirname, '..', 'index.html'));
+    });
+}
+
 // Start server
 async function startServer() {
     try {
         await db.initDatabase();
         
         app.listen(PORT, () => {
-            console.log(`🚀 Backend server running on http://localhost:${PORT}`);
+            const env = process.env.NODE_ENV || 'development';
+            console.log(`🚀 Backend server running on http://localhost:${PORT} (${env})`);
+            if (process.env.NODE_ENV === 'production') {
+                console.log(`📁 Serving static files from: ${path.join(__dirname, '..')}`);
+            }
             console.log(`📊 API endpoints:`);
             console.log(`   GET  /api/departments - Get all departments data`);
             console.log(`   POST /api/departments - Get department data by name`);
