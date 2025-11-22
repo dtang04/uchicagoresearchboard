@@ -597,14 +597,17 @@ app.get('/health', (req, res) => {
 // Root route - explicitly serve index.html for browsers
 // Only return JSON for explicit API health checks
 app.get('/', (req, res, next) => {
+    console.log(`🌐 [ROOT] Request to / - Accept: ${req.get('Accept') || 'none'}`);
     const acceptHeader = req.get('Accept') || '';
     // If it's a pure API health check request (only application/json, no other types), return JSON
     if (acceptHeader === 'application/json' || 
         (acceptHeader.includes('application/json') && !acceptHeader.includes('text/html') && !acceptHeader.includes('*/*') && acceptHeader.split(',').length === 1)) {
+        console.log(`🌐 [ROOT] Returning JSON response`);
         return res.json({ status: 'ok', service: 'uchicago-research-board-api' });
     }
     // For browsers, explicitly serve index.html (don't rely on express.static for root)
     // The catch-all route below will handle this, but we need to make sure it's called
+    console.log(`🌐 [ROOT] Passing to next middleware (browser request)`);
     next();
 });
 
@@ -671,36 +674,46 @@ if (shouldServeStatic) {
         console.log(`📂 Absolute static path: ${absoluteStaticPath}`);
         
         // Register static file middleware properly
-        // Skip /api routes from static file serving
+        // Skip /api routes and root path from static file serving
+        // Root path will be handled by catch-all route
         app.use((req, res, next) => {
             if (req.path.startsWith('/api')) {
                 return next(); // Skip static files for API routes
             }
-            next(); // Continue to static middleware
+            if (req.path === '/') {
+                return next(); // Skip root path, let catch-all handle it
+            }
+            next(); // Continue to static middleware for other paths
         });
         
-        // Serve static files (CSS, JS, images, etc.) - but NOT index.html for root
-        // We'll handle index.html explicitly in the catch-all route
+        // Serve static files (CSS, JS, images, etc.) - but NOT for root path
+        // Root path will be handled by catch-all route to serve index.html
         app.use(express.static(absoluteStaticPath, { index: false }));
         
         // Serve index.html for all non-API routes (SPA routing)
         // This must be after the static middleware
+        // This catch-all will handle root path and all other non-API routes
         app.get('*', (req, res, next) => {
             // Skip API routes
             if (req.path.startsWith('/api')) {
                 return next();
             }
             const indexPath = path.resolve(staticPath, 'index.html');
-            console.log(`📄 Attempting to serve index.html for: ${req.path}`);
+            console.log(`📄 [CATCH-ALL] Attempting to serve index.html for: ${req.path}`);
             console.log(`   Full path: ${indexPath}`);
+            console.log(`   Request method: ${req.method}`);
+            console.log(`   Request URL: ${req.url}`);
+            
+            // Use sendFile with absolute path
             res.sendFile(indexPath, (err) => {
                 if (err) {
-                    console.error(`❌ Error serving index.html for ${req.path}: ${err.message}`);
+                    console.error(`❌ [CATCH-ALL] Error serving index.html for ${req.path}: ${err.message}`);
                     console.error(`   Error code: ${err.code}`);
+                    console.error(`   Error stack: ${err.stack}`);
                     console.error(`   Attempted path: ${indexPath}`);
                     res.status(404).send(`File not found: ${req.path}`);
                 } else {
-                    console.log(`✅ Successfully served index.html for: ${req.path}`);
+                    console.log(`✅ [CATCH-ALL] Successfully served index.html for: ${req.path}`);
                 }
             });
         });
