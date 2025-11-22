@@ -599,15 +599,20 @@ app.get('/', (req, res, next) => {
 // Always serve in production, or if RAILWAY environment is set (Railway deployment)
 // Railway automatically sets RAILWAY environment variable, and we also check RAILWAY_ENVIRONMENT
 // Default to serving static files unless explicitly in development mode
+// Also check if PORT is set (Railway always sets this) as a fallback
 console.log('🔍 Checking static file serving configuration...');
 const isDevelopment = process.env.NODE_ENV === 'development' && !process.env.RAILWAY && !process.env.RAILWAY_ENVIRONMENT;
-const shouldServeStatic = !isDevelopment || process.env.NODE_ENV === 'production' || process.env.RAILWAY || process.env.RAILWAY_ENVIRONMENT;
+// Railway always sets PORT, so if PORT is set and NODE_ENV is not explicitly 'development', serve static files
+const isRailway = process.env.RAILWAY || process.env.RAILWAY_ENVIRONMENT || (process.env.PORT && process.env.NODE_ENV !== 'development');
+const shouldServeStatic = !isDevelopment || process.env.NODE_ENV === 'production' || isRailway;
 
 console.log(`🔍 Static file serving check:`);
 console.log(`   isDevelopment: ${isDevelopment}`);
 console.log(`   NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+console.log(`   PORT: ${process.env.PORT || 'not set'}`);
 console.log(`   RAILWAY: ${process.env.RAILWAY || 'not set'}`);
 console.log(`   RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
+console.log(`   isRailway (detected): ${isRailway}`);
 console.log(`   shouldServeStatic: ${shouldServeStatic}`);
 
 if (shouldServeStatic) {
