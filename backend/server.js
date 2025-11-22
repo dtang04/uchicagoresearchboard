@@ -555,11 +555,23 @@ app.get('/api/health', (req, res) => {
 // Always serve in production, or if RAILWAY environment is set (Railway deployment)
 const shouldServeStatic = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
 if (shouldServeStatic) {
+    const staticPath = path.join(__dirname, '..');
+    console.log(`📁 Serving static files from: ${staticPath}`);
+    console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
+    console.log(`🚂 RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
+    
     // Serve static files from parent directory (frontend)
-    app.use(express.static(path.join(__dirname, '..')));
+    app.use(express.static(staticPath));
+    
     // Serve index.html for all non-API routes (SPA routing)
-    app.get('*', (req, res) => {
-        res.sendFile(path.join(__dirname, '..', 'index.html'));
+    app.get('*', (req, res, next) => {
+        // Skip API routes
+        if (req.path.startsWith('/api')) {
+            return next();
+        }
+        const indexPath = path.join(staticPath, 'index.html');
+        console.log(`📄 Serving index.html for: ${req.path}`);
+        res.sendFile(indexPath);
     });
 }
 
