@@ -590,9 +590,11 @@ async function startServer() {
     try {
         await db.initDatabase();
         
-        app.listen(PORT, () => {
+        // Listen on 0.0.0.0 to accept connections from Railway
+        const HOST = process.env.HOST || '0.0.0.0';
+        app.listen(PORT, HOST, () => {
             const env = process.env.NODE_ENV || 'development';
-            console.log(`🚀 Backend server running on http://localhost:${PORT} (${env})`);
+            console.log(`🚀 Backend server running on http://${HOST}:${PORT} (${env})`);
             if (process.env.NODE_ENV === 'production') {
                 console.log(`📁 Serving static files from: ${path.join(__dirname, '..')}`);
             }
@@ -624,9 +626,22 @@ async function startServer() {
             console.log(`   GET  /api/health - Health check`);
         });
     } catch (error) {
-        console.error('Failed to start server:', error);
+        console.error('❌ Failed to start server:', error);
+        console.error('Error stack:', error.stack);
         process.exit(1);
     }
 }
+
+// Handle uncaught errors
+process.on('uncaughtException', (error) => {
+    console.error('❌ Uncaught Exception:', error);
+    console.error('Error stack:', error.stack);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
+});
 
 startServer();
