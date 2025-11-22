@@ -560,8 +560,13 @@ if (shouldServeStatic) {
     console.log(`🌐 NODE_ENV: ${process.env.NODE_ENV}`);
     console.log(`🚂 RAILWAY_ENVIRONMENT: ${process.env.RAILWAY_ENVIRONMENT || 'not set'}`);
     
-    // Serve static files from parent directory (frontend)
-    app.use(express.static(staticPath));
+    // Serve static files from parent directory (frontend), but exclude /api routes
+    app.use((req, res, next) => {
+        if (req.path.startsWith('/api')) {
+            return next(); // Skip static files for API routes
+        }
+        express.static(staticPath)(req, res, next);
+    });
     
     // Serve index.html for all non-API routes (SPA routing)
     app.get('*', (req, res, next) => {
@@ -571,7 +576,12 @@ if (shouldServeStatic) {
         }
         const indexPath = path.join(staticPath, 'index.html');
         console.log(`📄 Serving index.html for: ${req.path}`);
-        res.sendFile(indexPath);
+        res.sendFile(indexPath, (err) => {
+            if (err) {
+                console.error(`Error serving index.html: ${err.message}`);
+                next(err);
+            }
+        });
     });
 }
 
