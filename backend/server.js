@@ -557,13 +557,24 @@ app.post('/api/professor/stats', async (req, res) => {
     }
 });
 
-// Health check endpoints (Railway checks these)
+// Health check endpoints (Railway checks these) - MUST be before static file serving
+// These need to respond immediately, even before database is ready
+let serverReady = false;
+
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.status(200).json({ 
+        status: serverReady ? 'ok' : 'starting',
+        timestamp: new Date().toISOString(),
+        ready: serverReady
+    });
 });
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.status(200).json({ 
+        status: serverReady ? 'ok' : 'starting',
+        timestamp: new Date().toISOString(),
+        ready: serverReady
+    });
 });
 
 // Root health check (some platforms check this)
@@ -626,6 +637,7 @@ async function startServer() {
         const server = app.listen(PORT, HOST, () => {
             const env = process.env.NODE_ENV || 'development';
             console.log(`🚀 Backend server running on http://${HOST}:${PORT} (${env})`);
+            serverReady = true; // Mark server as ready for health checks
             console.log(`✅ Server is ready and listening!`);
             console.log(`🏥 Health check available at: http://${HOST}:${PORT}/health`);
             if (process.env.NODE_ENV === 'production') {
