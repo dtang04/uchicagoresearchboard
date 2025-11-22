@@ -551,8 +551,10 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve static files in production (must be after all API routes)
-if (process.env.NODE_ENV === 'production') {
+// Serve static files (must be after all API routes)
+// Always serve in production, or if RAILWAY environment is set (Railway deployment)
+const shouldServeStatic = process.env.NODE_ENV === 'production' || process.env.RAILWAY_ENVIRONMENT;
+if (shouldServeStatic) {
     // Serve static files from parent directory (frontend)
     app.use(express.static(path.join(__dirname, '..')));
     // Serve index.html for all non-API routes (SPA routing)
