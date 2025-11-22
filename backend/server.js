@@ -1,14 +1,25 @@
+// Log immediately - before anything else
+console.log('🚀 Server file loaded');
+console.log('📦 Node version:', process.version);
+console.log('📂 Current directory:', process.cwd());
+console.log('📁 __dirname:', __dirname);
+
 require('dotenv').config();
+console.log('✅ dotenv loaded');
+
 const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const path = require('path');
+console.log('✅ Express and dependencies loaded');
+
 const db = require('./database');
 const statsService = require('./stats-service');
 const auth = require('./auth-service');
 const emailService = require('./email-service');
+console.log('✅ All modules loaded');
 
 const app = express();
 const PORT = process.env.PORT || 3001;

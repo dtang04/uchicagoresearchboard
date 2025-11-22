@@ -7,9 +7,9 @@ WORKDIR /app
 # Copy package files
 COPY backend/package*.json ./backend/
 
-# Install dependencies
+# Install dependencies (install all, not just production, to ensure everything works)
 WORKDIR /app/backend
-RUN npm install --production
+RUN npm install
 
 # Copy the rest of the application
 WORKDIR /app
@@ -20,5 +20,7 @@ EXPOSE 3000
 
 # Start the application
 WORKDIR /app/backend
-CMD ["npm", "start"]
+
+# Use node directly instead of npm to avoid npm wrapper issues
+CMD ["node", "server.js"]
 
