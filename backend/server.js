@@ -588,7 +588,13 @@ if (shouldServeStatic) {
 // Start server
 async function startServer() {
     try {
+        console.log('🔧 Starting server...');
+        console.log(`📦 PORT: ${PORT}`);
+        console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
+        console.log(`📂 __dirname: ${__dirname}`);
+        console.log('💾 Initializing database...');
         await db.initDatabase();
+        console.log('✅ Database initialized successfully');
         
         // Listen on 0.0.0.0 to accept connections from Railway
         const HOST = process.env.HOST || '0.0.0.0';

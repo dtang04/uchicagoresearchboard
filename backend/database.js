@@ -10,16 +10,27 @@ let db = null;
  */
 function initDatabase() {
     return new Promise((resolve, reject) => {
-        db = new sqlite3.Database(DB_PATH, (err) => {
-            if (err) {
-                reject(err);
-            } else {
-                createTables().then(() => {
-                    console.log('✅ Database initialized');
-                    resolve();
-                }).catch(reject);
-            }
-        });
+        console.log(`💾 Opening database at: ${DB_PATH}`);
+        try {
+            db = new sqlite3.Database(DB_PATH, (err) => {
+                if (err) {
+                    console.error('❌ Database open error:', err);
+                    reject(err);
+                } else {
+                    console.log('📂 Database file opened, creating tables...');
+                    createTables().then(() => {
+                        console.log('✅ Database initialized');
+                        resolve();
+                    }).catch((tableErr) => {
+                        console.error('❌ Table creation error:', tableErr);
+                        reject(tableErr);
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('❌ Database initialization exception:', error);
+            reject(error);
+        }
     });
 }
 
