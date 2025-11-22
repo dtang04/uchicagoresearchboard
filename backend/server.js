@@ -559,21 +559,27 @@ app.post('/api/professor/stats', async (req, res) => {
 
 // Health check endpoints (Railway checks these) - MUST be before static file serving
 // These need to respond immediately, even before database is ready
+// Railway will kill the container if health checks don't return 200 OK quickly
 let serverReady = false;
+let databaseReady = false;
 
 app.get('/api/health', (req, res) => {
+    // Always return 200 OK - Railway needs this to keep the container alive
     res.status(200).json({ 
-        status: serverReady ? 'ok' : 'starting',
+        status: 'ok',
         timestamp: new Date().toISOString(),
-        ready: serverReady
+        ready: serverReady,
+        database: databaseReady ? 'ready' : 'initializing'
     });
 });
 
 app.get('/health', (req, res) => {
+    // Always return 200 OK - Railway needs this to keep the container alive
     res.status(200).json({ 
-        status: serverReady ? 'ok' : 'starting',
+        status: 'ok',
         timestamp: new Date().toISOString(),
-        ready: serverReady
+        ready: serverReady,
+        database: databaseReady ? 'ready' : 'initializing'
     });
 });
 
@@ -628,16 +634,14 @@ async function startServer() {
         console.log(`📦 PORT: ${PORT}`);
         console.log(`🌍 NODE_ENV: ${process.env.NODE_ENV || 'not set'}`);
         console.log(`📂 __dirname: ${__dirname}`);
-        console.log('💾 Initializing database...');
-        await db.initDatabase();
-        console.log('✅ Database initialized successfully');
         
         // Listen on 0.0.0.0 to accept connections from Railway
+        // Start listening IMMEDIATELY so Railway health checks pass
         const HOST = process.env.HOST || '0.0.0.0';
         const server = app.listen(PORT, HOST, () => {
+            serverReady = true; // Mark server as ready for health checks
             const env = process.env.NODE_ENV || 'development';
             console.log(`🚀 Backend server running on http://${HOST}:${PORT} (${env})`);
-            serverReady = true; // Mark server as ready for health checks
             console.log(`✅ Server is ready and listening!`);
             console.log(`🏥 Health check available at: http://${HOST}:${PORT}/health`);
             if (process.env.NODE_ENV === 'production') {
@@ -670,6 +674,18 @@ async function startServer() {
             console.log(`   DELETE /api/starred - Unstar a professor`);
             console.log(`   GET  /api/health - Health check`);
         });
+        
+        // Initialize database AFTER server starts listening (non-blocking)
+        // This allows Railway health checks to pass immediately
+        console.log('💾 Initializing database...');
+        db.initDatabase().then(() => {
+            databaseReady = true;
+            console.log('✅ Database initialized successfully');
+        }).catch((err) => {
+            console.error('❌ Database initialization failed:', err);
+            // Don't exit - server can still serve some endpoints
+            // Database will be retried on first use
+        });
     } catch (error) {
         console.error('❌ Failed to start server:', error);
         console.error('Error stack:', error.stack);
@@ -692,18 +708,29 @@ process.on('unhandledRejection', (reason, promise) => {
 // Handle SIGTERM gracefully (Railway sends this to stop containers)
 process.on('SIGTERM', () => {
     console.log('🛑 SIGTERM received, shutting down gracefully...');
-    if (db && db.close) {
-        db.close((err) => {
-            if (err) {
-                console.error('Error closing database:', err);
-            } else {
-                console.log('✅ Database closed');
+    // Get database instance and close it if available
+    try {
+        if (db && db.getDatabase) {
+            const database = db.getDatabase();
+            if (database && typeof database.close === 'function') {
+                database.close((err) => {
+                    if (err) {
+                        console.error('Error closing database:', err);
+                    } else {
+                        console.log('✅ Database closed');
+                    }
+                    process.exit(0);
+                });
+                return; // Exit early, close callback will handle process.exit
             }
-            process.exit(0);
-        });
-    } else {
-        process.exit(0);
+        }
+    } catch (error) {
+        // Database not initialized or getDatabase() threw an error
+        console.log('⚠️  Database not available for graceful shutdown:', error.message);
     }
+    // If we get here, database wasn't available or already closed
+    console.log('✅ Shutting down (no database connection to close)');
+    process.exit(0);
 });
 
 startServer();

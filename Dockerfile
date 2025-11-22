@@ -15,7 +15,8 @@ RUN npm install
 WORKDIR /app
 COPY . .
 
-# Expose port (Railway will set PORT env var)
+# Expose port (Railway will set PORT env var dynamically)
+# Using 3000 as default, but Railway will override via PORT env var
 EXPOSE 3000
 
 # Start the application
