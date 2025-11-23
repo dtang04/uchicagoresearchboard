@@ -742,6 +742,7 @@ header h1 {
 .department-stats-section {
     margin-bottom: 48px;
     animation: fadeInUp 0.6s ease-out;
+    overflow: visible;
 }
 
 .stats-card-combined {
@@ -752,7 +753,7 @@ header h1 {
     border: 2px solid var(--border-light);
     transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
     animation: fadeInUp 0.6s ease-out;
     display: flex;
     align-items: center;
@@ -784,6 +785,8 @@ header h1 {
     flex: 1;
     min-width: 150px;
     animation: fadeInUp 0.6s ease-out;
+    position: relative;
+    overflow: visible;
 }
 
 .stat-item-combined:nth-child(1) {
@@ -814,6 +817,70 @@ header h1 {
     letter-spacing: 0.05em;
     margin-bottom: 16px;
     opacity: 0.8;
+}
+
+.stat-asterisk {
+    display: inline-block;
+    color: var(--primary-color);
+    font-weight: 700;
+    cursor: help;
+    position: relative;
+    margin-left: 4px;
+    font-size: 1rem;
+    vertical-align: baseline;
+    z-index: 1001;
+}
+
+.stat-asterisk::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    background: var(--secondary-color);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+    font-weight: 400;
+    white-space: normal;
+    word-wrap: break-word;
+    word-break: normal;
+    overflow-wrap: break-word;
+    text-transform: none;
+    letter-spacing: normal;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 10000;
+    box-shadow: var(--shadow-lg);
+    min-width: 250px;
+    max-width: 350px;
+    text-align: left;
+    line-height: 1.5;
+}
+
+.stat-asterisk::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-2px);
+    border: 6px solid transparent;
+    border-top-color: var(--secondary-color);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.stat-asterisk:hover::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.stat-asterisk:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
 }
 
 .stat-number {

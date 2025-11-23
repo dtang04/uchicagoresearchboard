@@ -728,16 +728,17 @@ async function displayResults(query, professors) {
         'economics': 'Economics'
     };
     
-    if (isSingleDepartment && allDepartments[normalizedQuery]) {
-        departmentName = allDepartments[normalizedQuery];
-        normalizedDepartmentName = normalizedQuery; // Keep lowercase for API
-    } else if (isSingleDepartment && uniqueDepartments.size === 1) {
-        // Use the actual department from results (first department only, not combined)
+    // If we have a single department, always use that department name
+    if (uniqueDepartments.size === 1) {
         const dept = Array.from(uniqueDepartments)[0];
-        // Ensure we only use the first department if it's comma-separated
         const firstDept = dept.split(',')[0].trim();
-        departmentName = allDepartments[firstDept.toLowerCase()] || firstDept.charAt(0).toUpperCase() + firstDept.slice(1);
-        normalizedDepartmentName = firstDept.toLowerCase();
+        const deptLower = firstDept.toLowerCase();
+        departmentName = allDepartments[deptLower] || firstDept.charAt(0).toUpperCase() + firstDept.slice(1);
+        normalizedDepartmentName = deptLower;
+    } else if (allDepartments[normalizedQuery]) {
+        // Query matches a known department, but results might be from multiple departments
+        departmentName = allDepartments[normalizedQuery];
+        normalizedDepartmentName = normalizedQuery;
     } else {
         // Multiple departments or no clear match - use generic header
         departmentName = 'Search Results';
@@ -854,6 +855,12 @@ async function displayResults(query, professors) {
         return acc;
     }, { labMembers: 0, undergrads: 0, publications: 0 });
     
+    // Check if this is the mathematics department for the tooltip
+    const isMathematicsDept = normalizedDepartmentName === 'mathematics';
+    const undergradLabel = isMathematicsDept 
+        ? `<div class="stat-label">Undergraduate Researchers<span class="stat-asterisk" data-tooltip="Most undergraduate researchers in the math department participate in the REU program, and are not included in this total.">*</span></div>`
+        : `<div class="stat-label">Undergraduate Researchers</div>`;
+    
     resultsHTML += `
         <div class="department-stats-section">
             <div class="stats-card-combined">
@@ -863,7 +870,7 @@ async function displayResults(query, professors) {
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item-combined">
-                    <div class="stat-label">Undergraduate Researchers</div>
+                    ${undergradLabel}
                     <div class="stat-number" data-stat="undergrads">${totals.undergrads}</div>
                 </div>
                 <div class="stat-divider"></div>
@@ -875,7 +882,7 @@ async function displayResults(query, professors) {
         </div>
     `;
     
-    // 3. Local Programs (e.g., Math REU)
+    // 3. Local Programs (e.g., Math REU, Data Science Clinic)
     if (normalizedDepartmentName === 'mathematics') {
         resultsHTML += `
             <div class="reu-program-section">
@@ -883,6 +890,29 @@ async function displayResults(query, professors) {
                 <div class="reu-program-content">
                     <p class="reu-program-description">Explore summer research opportunities through the University of Chicago Mathematics REU Program.</p>
                     <a href="https://math.uchicago.edu/~may/REU2025/" target="_blank" rel="noopener noreferrer" class="reu-program-link">
+                        <span>Learn More</span>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Check if this is data science department - only show if it's exclusively data science
+    // Must be: single department AND that department is data science
+    const isDataScienceDept = (uniqueDepartments.size === 1 && 
+                               Array.from(uniqueDepartments)[0].toLowerCase().trim() === 'data science') ||
+                               normalizedDepartmentName.toLowerCase().trim() === 'data science';
+    
+    if (isDataScienceDept) {
+        resultsHTML += `
+            <div class="reu-program-section">
+                <h3 class="reu-program-header">Data Science Clinic</h3>
+                <div class="reu-program-content">
+                    <p class="reu-program-description">An experiential project-based course where students work in teams as data scientists with real-world clients under the supervision of instructors.</p>
+                    <a href="https://clinic.ds.uchicago.edu/" target="_blank" rel="noopener noreferrer" class="reu-program-link">
                         <span>Learn More</span>
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
