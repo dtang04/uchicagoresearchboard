@@ -1191,29 +1191,50 @@ async function displayResults(query, professors, signal = null) {
     const animationSignal = signal;
     
     setTimeout(() => {
+        console.log('⏰ First setTimeout callback executing...');
         // Check if search was cancelled before updating DOM
         if (animationSignal && animationSignal.aborted) {
+            console.log('❌ Search was aborted in first setTimeout');
             return;
         }
         
+        console.log('📝 Setting innerHTML (length: ' + resultsHTML.length + ' chars)...');
         // Reset click tracking flag when replacing content
         // This allows setupClickTracking to run again for new content
         clickTrackingSetup = false;
-        resultsContainer.innerHTML = resultsHTML;
+        try {
+            resultsContainer.innerHTML = resultsHTML;
+            console.log('✅ innerHTML set successfully');
+        } catch (innerHTMLError) {
+            console.error('❌ Error setting innerHTML:', innerHTMLError);
+            console.error('innerHTML error stack:', innerHTMLError.stack);
+            throw innerHTMLError;
+        }
         
         // Trigger animations after a brief delay
         setTimeout(() => {
+            console.log('⏰ Second setTimeout callback executing (animations)...');
             // Check again if search was cancelled
             if (animationSignal && animationSignal.aborted) {
+                console.log('❌ Search was aborted in second setTimeout');
                 return;
             }
             
-            resultsContainer.style.opacity = '1';
-            resultsContainer.style.transform = 'translateY(0)';
+            console.log('🎨 Applying container styles...');
+            try {
+                resultsContainer.style.opacity = '1';
+                resultsContainer.style.transform = 'translateY(0)';
+                console.log('✅ Container styles applied');
+            } catch (styleError) {
+                console.error('❌ Error applying container styles:', styleError);
+                throw styleError;
+            }
             
             // Add animation classes to cards for staggered effect
             // Limit animations to prevent memory issues on mobile
+            console.log('🔍 Querying for professor cards...');
             const cards = resultsContainer.querySelectorAll('.professor-card');
+            console.log(`📊 Found ${cards.length} cards to animate`);
             const maxAnimatedCards = 50; // Limit to prevent memory issues
             
             // Detect mobile to reduce animation complexity
@@ -1222,11 +1243,25 @@ async function displayResults(query, professors, signal = null) {
             
             // Use requestAnimationFrame for better performance on mobile
             const animateCards = () => {
+                console.log('🎬 animateCards() function called');
                 if (animationSignal && animationSignal.aborted) {
+                    console.log('❌ Animation signal aborted');
                     return;
                 }
                 
+                console.log(`🔄 Starting forEach loop for ${cards.length} cards...`);
+                let cardsProcessed = 0;
                 cards.forEach((card, index) => {
+                    cardsProcessed++;
+                    if (index === 0) {
+                        console.log(`📦 Processing first card (index ${index})...`);
+                    }
+                    if (index === Math.floor(cards.length / 2)) {
+                        console.log(`📦 Processing middle card (index ${index})...`);
+                    }
+                    if (index === cards.length - 1) {
+                        console.log(`📦 Processing last card (index ${index})...`);
+                    }
                     if (index >= maxAnimatedCards) {
                         // Skip animation for cards beyond limit to prevent crashes
                         card.style.opacity = '1';
@@ -1245,18 +1280,27 @@ async function displayResults(query, professors, signal = null) {
                     card.style.transform = 'translateY(30px) scale(0.9)';
                     
                     // Use requestAnimationFrame for smoother, less resource-intensive animations
-                    requestAnimationFrame(() => {
-                        setTimeout(() => {
-                            // Check if search was cancelled before animating
-                            if (animationSignal && animationSignal.aborted) {
-                                return;
-                            }
-                            card.style.transition = `opacity 0.5s ease ${index * animationDelay}s, transform 0.5s ease ${index * animationDelay}s`;
-                            card.style.opacity = '1';
-                            card.style.transform = 'translateY(0) scale(1)';
-                        }, 50);
-                    });
+                    try {
+                        requestAnimationFrame(() => {
+                            setTimeout(() => {
+                                // Check if search was cancelled before animating
+                                if (animationSignal && animationSignal.aborted) {
+                                    return;
+                                }
+                                try {
+                                    card.style.transition = `opacity 0.5s ease ${index * animationDelay}s, transform 0.5s ease ${index * animationDelay}s`;
+                                    card.style.opacity = '1';
+                                    card.style.transform = 'translateY(0) scale(1)';
+                                } catch (cardStyleError) {
+                                    console.error(`❌ Error setting card ${index} styles:`, cardStyleError);
+                                }
+                            }, 50);
+                        });
+                    } catch (rafError) {
+                        console.error(`❌ Error in requestAnimationFrame for card ${index}:`, rafError);
+                    }
                 });
+                console.log(`✅ forEach loop completed, processed ${cardsProcessed} cards`);
             };
             
             // Start animations
@@ -1273,45 +1317,59 @@ async function displayResults(query, professors, signal = null) {
             // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
             // Use requestAnimationFrame to batch DOM operations
             console.log(`⏳ Scheduling click tracking setup (delay: ${isMobile ? 200 : 100}ms)`);
-            requestAnimationFrame(() => {
-                setTimeout(() => {
-                    console.log(`🔍 Starting click tracking setup...`);
-                    const trackingStartTime = performance.now();
-                    
-                    // Final check before setting up tracking
-                    if (animationSignal && animationSignal.aborted) {
-                        console.log(`❌ Search was aborted, skipping click tracking`);
-                        return;
-                    }
-                    try {
-                        if (performance.memory) {
-                            console.log(`📊 Memory before click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                        }
-                        setupClickTracking();
-                        const trackingTime = performance.now() - trackingStartTime;
-                        console.log(`⏱️ Click tracking setup took ${trackingTime.toFixed(2)}ms`);
-                        if (performance.memory) {
-                            console.log(`📊 Memory after click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                        }
+            try {
+                requestAnimationFrame(() => {
+                    console.log('🎬 requestAnimationFrame callback for click tracking executing...');
+                    setTimeout(() => {
+                        console.log(`🔍 setTimeout callback for click tracking executing...`);
+                        const trackingStartTime = performance.now();
                         
-                        const updateStartTime = performance.now();
-                        updateStarIcons();
-                        console.log(`⏱️ Star icon update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
-                        if (performance.memory) {
-                            console.log(`📊 Memory after star update: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                        // Final check before setting up tracking
+                        if (animationSignal && animationSignal.aborted) {
+                            console.log(`❌ Search was aborted, skipping click tracking`);
+                            return;
                         }
-                    } catch (error) {
-                        console.error('❌ Error setting up click tracking:', error);
-                        console.error('Error stack:', error.stack);
-                        // Try to recover - at least show the cards even if tracking fails
-                        const cards = resultsContainer.querySelectorAll('.professor-card');
-                        cards.forEach(card => {
-                            card.style.opacity = '1';
-                            card.style.transform = 'translateY(0) scale(1)';
-                        });
-                    }
-                }, isMobile ? 200 : 100); // Longer delay on mobile to let animations settle
-            });
+                        try {
+                            if (performance.memory) {
+                                console.log(`📊 Memory before click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                            }
+                            console.log('🚀 About to call setupClickTracking()...');
+                            setupClickTracking();
+                            const trackingTime = performance.now() - trackingStartTime;
+                            console.log(`⏱️ Click tracking setup took ${trackingTime.toFixed(2)}ms`);
+                            if (performance.memory) {
+                                console.log(`📊 Memory after click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                            }
+                            
+                            console.log('⭐ About to call updateStarIcons()...');
+                            const updateStartTime = performance.now();
+                            updateStarIcons();
+                            console.log(`⏱️ Star icon update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
+                            if (performance.memory) {
+                                console.log(`📊 Memory after star update: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                            }
+                            console.log('✅ All click tracking setup completed successfully!');
+                        } catch (error) {
+                            console.error('❌ Error setting up click tracking:', error);
+                            console.error('Error stack:', error.stack);
+                            console.error('Error details:', {
+                                message: error.message,
+                                name: error.name,
+                                stack: error.stack
+                            });
+                            // Try to recover - at least show the cards even if tracking fails
+                            const cards = resultsContainer.querySelectorAll('.professor-card');
+                            cards.forEach(card => {
+                                card.style.opacity = '1';
+                                card.style.transform = 'translateY(0) scale(1)';
+                            });
+                        }
+                    }, isMobile ? 200 : 100); // Longer delay on mobile to let animations settle
+                });
+            } catch (rafError) {
+                console.error('❌ Error in requestAnimationFrame for click tracking:', rafError);
+                console.error('RAF error stack:', rafError.stack);
+            }
         }, 50);
     }, 150);
 }
