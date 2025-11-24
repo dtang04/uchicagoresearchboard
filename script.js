@@ -13,6 +13,8 @@ let globalLastHandlerTime = 0;
 
 // Global WeakMap to store touchHandled state per element (shared across all listeners)
 const touchStateMap = new WeakMap();
+// Track touch positions to detect scroll vs tap
+const touchStartPositions = new WeakMap();
 
 // Helper function to handle both click and touch events for mobile
 function addMobileFriendlyListener(element, handler) {
@@ -27,9 +29,18 @@ function addMobileFriendlyListener(element, handler) {
     const elementId = element.id || element.getAttribute('data-professor') || 'unknown';
     console.log(`    🔸 addMobileFriendlyListener called for: ${elementType} (${elementId})`);
     
-    // Track touch start
+    // Track touch start position to detect scroll vs tap
     console.log(`    🔸 Setting up touchstart listener...`);
     const touchStartHandler = (e) => {
+        const touch = e.touches[0] || e.changedTouches[0];
+        if (touch) {
+            touchStartPositions.set(element, {
+                x: touch.clientX,
+                y: touch.clientY,
+                time: Date.now(),
+                cancelled: false
+            });
+        }
         touchStateMap.set(element, false);
     };
     try {
@@ -40,20 +51,80 @@ function addMobileFriendlyListener(element, handler) {
         throw touchStartError;
     }
     
-    // Handle touch end
+    // Track touch move to cancel if user is scrolling
+    const touchMoveHandler = (e) => {
+        const startPos = touchStartPositions.get(element);
+        const touch = e.touches[0] || e.changedTouches[0];
+        
+        if (startPos && touch && !startPos.cancelled) {
+            const deltaX = Math.abs(touch.clientX - startPos.x);
+            const deltaY = Math.abs(touch.clientY - startPos.y);
+            const moveDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            // If moved more than 5px, it's a scroll - cancel the tap
+            if (moveDistance > 5) {
+                startPos.cancelled = true;
+                touchStateMap.set(element, false);
+            }
+        }
+    };
+    try {
+        element.addEventListener('touchmove', touchMoveHandler, { passive: true });
+    } catch (touchMoveError) {
+        console.error(`    ❌ Error adding touchmove listener:`, touchMoveError);
+    }
+    
+    // Handle touch end - only trigger if it's a tap (not a scroll)
     console.log(`    🔸 Setting up touchend listener...`);
     const touchEndHandler = (e) => {
         const now = Date.now();
+        const startPos = touchStartPositions.get(element);
+        const touch = e.changedTouches[0];
+        
+        // Check if touch was cancelled during move (scrolling)
+        if (startPos && startPos.cancelled) {
+            console.log(`    📜 Touch cancelled during move (scroll detected), ignoring`);
+            touchStateMap.set(element, false);
+            touchStartPositions.delete(element);
+            return;
+        }
+        
+        // Check if this was a scroll (touch moved significantly)
+        if (startPos && touch) {
+            const deltaX = Math.abs(touch.clientX - startPos.x);
+            const deltaY = Math.abs(touch.clientY - startPos.y);
+            const deltaTime = now - startPos.time;
+            const moveDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+            
+            // If moved more than 10px or took longer than 300ms, it's likely a scroll
+            if (moveDistance > 10 || deltaTime > 300) {
+                console.log(`    📜 Touch detected as scroll (moved ${moveDistance.toFixed(1)}px in ${deltaTime}ms), ignoring`);
+                touchStateMap.set(element, false);
+                touchStartPositions.delete(element);
+                return; // Don't prevent default for scrolls
+            }
+        }
+        
         // Global debounce: prevent rapid clicks across all buttons
         if ((now - globalLastHandlerTime) < 500) {
+            console.log(`    ⏸️ Debounced - too soon after last click`);
             e.preventDefault();
             e.stopPropagation();
+            return;
+        }
+        
+        // Verify the touch target is still this element (not a child that moved)
+        const touchTarget = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (!element.contains(touchTarget) && touchTarget !== element) {
+            console.log(`    ⚠️ Touch target changed, ignoring`);
+            touchStateMap.set(element, false);
             return;
         }
         
         // Mark as handled BEFORE calling handler to prevent race conditions
         touchStateMap.set(element, true);
         globalLastHandlerTime = now;
+        touchStartPositions.delete(element);
         
         // Prevent default to stop click event
         e.preventDefault();
@@ -133,6 +204,7 @@ function addMobileFriendlyListener(element, handler) {
     if (!element._mobileListeners) {
         element._mobileListeners = {
             touchstart: touchStartHandler,
+            touchmove: touchMoveHandler,
             touchend: touchEndHandler,
             click: clickHandler
         };
@@ -204,6 +276,14 @@ document.addEventListener('DOMContentLoaded', () => {
         addMobileFriendlyListener(btn, async (e) => {
             const filterClickStartTime = performance.now();
             const clickId = Math.random().toString(36).substr(2, 9);
+            
+            // Verify this is the correct button (prevent wrong button from firing)
+            const clickedDept = btn.getAttribute('data-dept');
+            if (clickedDept !== dept) {
+                console.warn(`⚠️ Button mismatch: expected "${dept}", got "${clickedDept}", ignoring`);
+                return;
+            }
+            
             try {
                 console.log(`🔘 Filter button clicked: ${dept} (clickId: ${clickId}, at ${new Date().toISOString()})`);
                 console.log(`  📊 Current search state: isSearching=${isSearching}, searchInput.value="${searchInput?.value || 'N/A'}"`);
@@ -211,6 +291,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!searchInput) {
                     console.error('❌ searchInput is not available');
                     return;
+                }
+                
+                // If already searching, wait a bit and check again
+                if (isSearching) {
+                    console.log(`⏳ Search already in progress, waiting...`);
+                    let waitCount = 0;
+                    while (isSearching && waitCount < 10) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        waitCount++;
+                    }
+                    if (isSearching) {
+                        console.warn(`⚠️ Search still in progress after waiting, proceeding anyway`);
+                    }
                 }
                 
                 const previousValue = searchInput.value;
@@ -227,11 +320,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const errorTime = performance.now() - filterClickStartTime;
                 console.error(`❌ Error in filter button handler after ${errorTime.toFixed(2)}ms:`, error);
                 console.error('Filter button error stack:', error.stack);
-                console.error('Error details:', {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack
-                });
+                
+                // Clear loading state on error
+                isSearching = false;
+                currentSearchController = null;
+                
                 // Prevent page crash by showing error instead
                 if (resultsContainer) {
                     resultsContainer.innerHTML = `
@@ -312,21 +405,35 @@ async function handleSearch() {
     } catch (error) {
         // Don't show error if it was aborted
         if (error.name === 'AbortError') {
+            console.log(`⏹️ Search aborted (searchId: ${searchId})`);
             return;
         }
         console.error('Error in search:', error);
+        console.error('Error details:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+        });
+        
+        // Clear loading state
+        isSearching = false;
+        currentSearchController = null;
+        
         if (resultsContainer) {
             resultsContainer.innerHTML = `
                 <div class="no-results">
                     <h3>Error loading data</h3>
                     <p>Unable to connect to the backend server. Please make sure the server is running.</p>
+                    <p style="font-size: 0.875rem; color: var(--text-tertiary); margin-top: 8px;">${error.message || 'Unknown error'}</p>
                 </div>
             `;
         }
     } finally {
         console.log(`🏁 handleSearch() finished (searchId: ${searchId})`);
+        // Ensure state is cleared even if there was an error
         isSearching = false;
         currentSearchController = null;
+        console.log(`  ✅ Search state cleared: isSearching=${isSearching}`);
     }
 }
 
@@ -916,14 +1023,22 @@ function mergeDuplicateProfessors(professors) {
 }
 
 function showLoading() {
-    resultsContainer.style.opacity = '0';
-    resultsContainer.style.transform = 'translateY(20px)';
-    setTimeout(() => {
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+        // On mobile: instant loading state, no animations
         resultsContainer.innerHTML = '<div class="loading">Searching</div>';
-        resultsContainer.style.opacity = '1';
-        resultsContainer.style.transform = 'translateY(0)';
-        resultsContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-    }, 100);
+    } else {
+        // Desktop: smooth transition
+        resultsContainer.style.opacity = '0';
+        resultsContainer.style.transform = 'translateY(20px)';
+        setTimeout(() => {
+            resultsContainer.innerHTML = '<div class="loading">Searching</div>';
+            resultsContainer.style.opacity = '1';
+            resultsContainer.style.transform = 'translateY(0)';
+            resultsContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        }, 100);
+    }
 }
 
 function showWelcomeMessage() {
