@@ -1340,60 +1340,80 @@ async function displayResults(query, professors, signal = null) {
             }
             
             // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
-            // Use requestAnimationFrame to batch DOM operations
-            console.log(`⏳ Scheduling click tracking setup (delay: ${isMobile ? 200 : 100}ms)`);
-            try {
-                requestAnimationFrame(() => {
-                    console.log('🎬 requestAnimationFrame callback for click tracking executing...');
-                    setTimeout(() => {
-                        console.log(`🔍 setTimeout callback for click tracking executing...`);
-                        const trackingStartTime = performance.now();
-                        
-                        // Final check before setting up tracking
-                        if (animationSignal && animationSignal.aborted) {
-                            console.log(`❌ Search was aborted, skipping click tracking`);
-                            return;
-                        }
-                        try {
-                            if (performance.memory) {
-                                console.log(`📊 Memory before click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                            }
-                            console.log('🚀 About to call setupClickTracking()...');
-                            setupClickTracking();
-                            const trackingTime = performance.now() - trackingStartTime;
-                            console.log(`⏱️ Click tracking setup took ${trackingTime.toFixed(2)}ms`);
-                            if (performance.memory) {
-                                console.log(`📊 Memory after click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                            }
-                            
-                            console.log('⭐ About to call updateStarIcons()...');
-                            const updateStartTime = performance.now();
-                            updateStarIcons();
-                            console.log(`⏱️ Star icon update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
-                            if (performance.memory) {
-                                console.log(`📊 Memory after star update: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                            }
-                            console.log('✅ All click tracking setup completed successfully!');
-                        } catch (error) {
-                            console.error('❌ Error setting up click tracking:', error);
-                            console.error('Error stack:', error.stack);
-                            console.error('Error details:', {
-                                message: error.message,
-                                name: error.name,
-                                stack: error.stack
-                            });
-                            // Try to recover - at least show the cards even if tracking fails
-                            const cards = resultsContainer.querySelectorAll('.professor-card');
-                            cards.forEach(card => {
-                                card.style.opacity = '1';
-                                card.style.transform = 'translateY(0) scale(1)';
-                            });
-                        }
-                    }, isMobile ? 200 : 100); // Longer delay on mobile to let animations settle
-                });
-            } catch (rafError) {
-                console.error('❌ Error in requestAnimationFrame for click tracking:', rafError);
-                console.error('RAF error stack:', rafError.stack);
+            // On mobile, skip requestAnimationFrame to avoid nested async issues
+            const clickTrackingDelay = isMobile ? 200 : 100;
+            console.log(`⏳ Scheduling click tracking setup (delay: ${clickTrackingDelay}ms, mobile: ${isMobile})`);
+            
+            // On mobile, use a simple setTimeout to avoid nested async issues with requestAnimationFrame
+            const setupClickTrackingDelayed = () => {
+                console.log(`🔍 setTimeout callback for click tracking executing...`);
+                const trackingStartTime = performance.now();
+                
+                // Final check before setting up tracking
+                if (animationSignal && animationSignal.aborted) {
+                    console.log(`❌ Search was aborted, skipping click tracking`);
+                    return;
+                }
+                try {
+                    if (performance.memory) {
+                        console.log(`📊 Memory before click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                    }
+                    console.log('🚀 About to call setupClickTracking()...');
+                    setupClickTracking();
+                    const trackingTime = performance.now() - trackingStartTime;
+                    console.log(`⏱️ Click tracking setup took ${trackingTime.toFixed(2)}ms`);
+                    if (performance.memory) {
+                        console.log(`📊 Memory after click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                    }
+                    
+                    console.log('⭐ About to call updateStarIcons()...');
+                    const updateStartTime = performance.now();
+                    updateStarIcons();
+                    console.log(`⏱️ Star icon update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
+                    if (performance.memory) {
+                        console.log(`📊 Memory after star update: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                    }
+                    console.log('✅ All click tracking setup completed successfully!');
+                } catch (error) {
+                    console.error('❌ Error setting up click tracking:', error);
+                    console.error('Error stack:', error.stack);
+                    console.error('Error details:', {
+                        message: error.message,
+                        name: error.name,
+                        stack: error.stack
+                    });
+                    // Try to recover - at least show the cards even if tracking fails
+                    try {
+                        const cards = resultsContainer.querySelectorAll('.professor-card');
+                        cards.forEach(card => {
+                            card.style.opacity = '1';
+                            card.style.transform = 'translateY(0) scale(1)';
+                        });
+                    } catch (recoveryError) {
+                        console.error('❌ Error in recovery:', recoveryError);
+                    }
+                }
+            };
+            
+            if (isMobile) {
+                // On mobile, use simple setTimeout to avoid nested async issues
+                console.log('📱 Mobile detected - using simple setTimeout (no requestAnimationFrame)');
+                setTimeout(setupClickTrackingDelayed, clickTrackingDelay);
+            } else {
+                // On desktop, use requestAnimationFrame for better performance
+                try {
+                    console.log('🖥️ Desktop detected - using requestAnimationFrame');
+                    requestAnimationFrame(() => {
+                        console.log('🎬 requestAnimationFrame callback for click tracking executing...');
+                        setTimeout(setupClickTrackingDelayed, clickTrackingDelay);
+                    });
+                } catch (rafError) {
+                    console.error('❌ Error in requestAnimationFrame for click tracking:', rafError);
+                    console.error('RAF error stack:', rafError.stack);
+                    // Fallback to simple setTimeout
+                    console.log('🔄 Falling back to simple setTimeout...');
+                    setTimeout(setupClickTrackingDelayed, clickTrackingDelay);
+                }
             }
         }, 50);
     }, 150);
