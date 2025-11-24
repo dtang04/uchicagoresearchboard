@@ -1172,35 +1172,75 @@ async function displayResults(query, professors, signal = null) {
             // Limit animations to prevent memory issues on mobile
             const cards = resultsContainer.querySelectorAll('.professor-card');
             const maxAnimatedCards = 50; // Limit to prevent memory issues
-            cards.forEach((card, index) => {
-                if (index >= maxAnimatedCards) {
-                    // Skip animation for cards beyond limit to prevent crashes
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0) scale(1)';
-                    return;
-                }
-                card.style.opacity = '0';
-                card.style.transform = 'translateY(30px) scale(0.9)';
-                setTimeout(() => {
-                    // Check if search was cancelled before animating
-                    if (animationSignal && animationSignal.aborted) {
-                        return;
-                    }
-                    card.style.transition = `opacity 0.5s ease ${index * 0.05}s, transform 0.5s ease ${index * 0.05}s`;
-                    card.style.opacity = '1';
-                    card.style.transform = 'translateY(0) scale(1)';
-                }, 50);
-            });
             
-            // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
-            setTimeout(() => {
-                // Final check before setting up tracking
+            // Detect mobile to reduce animation complexity
+            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+            const animationDelay = isMobile ? 0.02 : 0.05; // Faster on mobile to reduce load
+            
+            // Use requestAnimationFrame for better performance on mobile
+            const animateCards = () => {
                 if (animationSignal && animationSignal.aborted) {
                     return;
                 }
-                setupClickTracking();
-                updateStarIcons();
-            }, 100);
+                
+                cards.forEach((card, index) => {
+                    if (index >= maxAnimatedCards) {
+                        // Skip animation for cards beyond limit to prevent crashes
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0) scale(1)';
+                        return;
+                    }
+                    
+                    // On mobile, skip complex animations to prevent crashes
+                    if (isMobile && index > 20) {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0) scale(1)';
+                        return;
+                    }
+                    
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateY(30px) scale(0.9)';
+                    
+                    // Use requestAnimationFrame for smoother, less resource-intensive animations
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            // Check if search was cancelled before animating
+                            if (animationSignal && animationSignal.aborted) {
+                                return;
+                            }
+                            card.style.transition = `opacity 0.5s ease ${index * animationDelay}s, transform 0.5s ease ${index * animationDelay}s`;
+                            card.style.opacity = '1';
+                            card.style.transform = 'translateY(0) scale(1)';
+                        }, 50);
+                    });
+                });
+            };
+            
+            // Start animations
+            animateCards();
+            
+            // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
+            // Use requestAnimationFrame to batch DOM operations
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    // Final check before setting up tracking
+                    if (animationSignal && animationSignal.aborted) {
+                        return;
+                    }
+                    try {
+                        setupClickTracking();
+                        updateStarIcons();
+                    } catch (error) {
+                        console.error('Error setting up click tracking:', error);
+                        // Try to recover - at least show the cards even if tracking fails
+                        const cards = resultsContainer.querySelectorAll('.professor-card');
+                        cards.forEach(card => {
+                            card.style.opacity = '1';
+                            card.style.transform = 'translateY(0) scale(1)';
+                        });
+                    }
+                }, isMobile ? 200 : 100); // Longer delay on mobile to let animations settle
+            });
         }, 50);
     }, 150);
 }
@@ -1216,6 +1256,9 @@ function setupClickTracking() {
         return;
     }
     clickTrackingSetup = true;
+    
+    // Detect mobile to optimize performance
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // Track clicks on email links
     document.querySelectorAll('.email-link').forEach(link => {
@@ -1269,7 +1312,17 @@ function setupClickTracking() {
     const cards = document.querySelectorAll('.professor-card');
     console.log(`🔍 Setting up click tracking for ${cards.length} cards`);
     
-    cards.forEach((card, index) => {
+    // Batch event listener setup to prevent overwhelming mobile browsers
+    // Process in smaller chunks on mobile
+    const batchSize = isMobile ? 10 : 50;
+    let processedCards = 0;
+    
+    const processCardBatch = () => {
+        const endIndex = Math.min(processedCards + batchSize, cards.length);
+        
+        for (let i = processedCards; i < endIndex; i++) {
+            const card = cards[i];
+            if (!card) continue;
         // Handle card flip on click (mobile-friendly)
         const handleCardClick = async (e) => {
             try {
@@ -1320,76 +1373,136 @@ function setupClickTracking() {
             }
         };
         
-        addMobileFriendlyListener(card, handleCardClick);
-    });
+            addMobileFriendlyListener(card, handleCardClick);
+        }
+        
+        processedCards = endIndex;
+        
+        // If there are more cards, process next batch asynchronously
+        if (processedCards < cards.length) {
+            // Use requestIdleCallback if available, otherwise setTimeout
+            if (window.requestIdleCallback) {
+                requestIdleCallback(processCardBatch, { timeout: 1000 });
+            } else {
+                setTimeout(processCardBatch, isMobile ? 50 : 10);
+            }
+        } else {
+            // All cards processed, now setup star icons
+            try {
+                setupStarIcons();
+                console.log(`✅ Click tracking setup complete for ${cards.length} cards`);
+            } catch (error) {
+                console.error('Error setting up star icons:', error);
+            }
+        }
+    };
     
-    // Setup star icon handlers
-    setupStarIcons();
-    
-    console.log(`✅ Click tracking setup complete for ${cards.length} cards`);
+    // Start processing cards in batches
+    if (cards.length > 0) {
+        processCardBatch();
+    } else {
+        // No cards, just setup star icons
+        try {
+            setupStarIcons();
+            console.log(`✅ Click tracking setup complete for 0 cards`);
+        } catch (error) {
+            console.error('Error setting up star icons:', error);
+        }
+    }
 }
 
 // Setup star icon click handlers
 function setupStarIcons() {
-    document.querySelectorAll('.star-icon-container').forEach(container => {
-        const handleStarClick = async (e) => {
-            e.stopPropagation(); // Prevent card flip
-            
-            if (!window.authService || !window.authService.isAuthenticated()) {
-                // Show login modal
-                document.getElementById('authModal').style.display = 'flex';
-                return;
-            }
-            
-            const professorName = container.getAttribute('data-professor');
-            const departmentName = container.getAttribute('data-department');
-            const starIcon = container.querySelector('.star-icon');
-            const isStarred = starIcon.classList.contains('starred');
-            
-            try {
-                const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
-                const token = window.authService.getAuthToken();
-                
-                if (isStarred) {
-                    // Unstar
-                    const response = await fetch(`${API_BASE}/starred`, {
-                        method: 'DELETE',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ professorName, departmentName })
-                    });
-                    
-                    if (response.ok) {
-                        starIcon.classList.remove('starred');
-                        const key = `${professorName}|${departmentName}`;
-                        starredProfessors.delete(key);
-                    }
-                } else {
-                    // Star
-                    const response = await fetch(`${API_BASE}/starred`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ professorName, departmentName })
-                    });
-                    
-                    if (response.ok) {
-                        starIcon.classList.add('starred');
-                        const key = `${professorName}|${departmentName}`;
-                        starredProfessors.add(key);
-                    }
-                }
-            } catch (error) {
-                console.error('Error toggling star:', error);
-            }
-        };
+    const containers = document.querySelectorAll('.star-icon-container');
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // Batch processing for star icons too
+    const batchSize = isMobile ? 15 : 50;
+    let processed = 0;
+    
+    const processStarBatch = () => {
+        const endIndex = Math.min(processed + batchSize, containers.length);
         
-        addMobileFriendlyListener(container, handleStarClick);
-    });
+        for (let i = processed; i < endIndex; i++) {
+            const container = containers[i];
+            if (!container) continue;
+            
+            const handleStarClick = async (e) => {
+                e.stopPropagation(); // Prevent card flip
+                
+                if (!window.authService || !window.authService.isAuthenticated()) {
+                    // Show login modal
+                    document.getElementById('authModal').style.display = 'flex';
+                    return;
+                }
+                
+                const professorName = container.getAttribute('data-professor');
+                const departmentName = container.getAttribute('data-department');
+                const starIcon = container.querySelector('.star-icon');
+                const isStarred = starIcon.classList.contains('starred');
+                
+                try {
+                    const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
+                    const token = window.authService.getAuthToken();
+                    
+                    if (isStarred) {
+                        // Unstar
+                        const response = await fetch(`${API_BASE}/starred`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ professorName, departmentName })
+                        });
+                        
+                        if (response.ok) {
+                            starIcon.classList.remove('starred');
+                            const key = `${professorName}|${departmentName}`;
+                            starredProfessors.delete(key);
+                        }
+                    } else {
+                        // Star
+                        const response = await fetch(`${API_BASE}/starred`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${token}`
+                            },
+                            body: JSON.stringify({ professorName, departmentName })
+                        });
+                        
+                        if (response.ok) {
+                            starIcon.classList.add('starred');
+                            const key = `${professorName}|${departmentName}`;
+                            starredProfessors.add(key);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error toggling star:', error);
+                }
+            };
+            
+            addMobileFriendlyListener(container, handleStarClick);
+        }
+        
+        processed = endIndex;
+        
+        // If there are more containers, process next batch asynchronously
+        if (processed < containers.length) {
+            // Use requestIdleCallback if available, otherwise setTimeout
+            if (window.requestIdleCallback) {
+                requestIdleCallback(processStarBatch, { timeout: 1000 });
+            } else {
+                setTimeout(processStarBatch, isMobile ? 50 : 10);
+            }
+        }
+    };
+    
+    // Start processing star icons in batches
+    if (containers.length > 0) {
+        processStarBatch();
+    }
 }
 
 // Update star icons based on starred state
