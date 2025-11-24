@@ -16,21 +16,32 @@ const touchStateMap = new WeakMap();
 
 // Helper function to handle both click and touch events for mobile
 function addMobileFriendlyListener(element, handler) {
+    const listenerStartTime = performance.now();
+    
     if (!element) {
         console.warn('⚠️ addMobileFriendlyListener: element is null/undefined');
         return;
     }
     
-    const listenerStartTime = performance.now();
     const elementType = element.className || element.tagName || 'unknown';
+    const elementId = element.id || element.getAttribute('data-professor') || 'unknown';
+    console.log(`    🔸 addMobileFriendlyListener called for: ${elementType} (${elementId})`);
     
     // Track touch start
+    console.log(`    🔸 Setting up touchstart listener...`);
     const touchStartHandler = (e) => {
         touchStateMap.set(element, false);
     };
-    element.addEventListener('touchstart', touchStartHandler, { passive: true });
+    try {
+        element.addEventListener('touchstart', touchStartHandler, { passive: true });
+        console.log(`    ✅ touchstart listener added`);
+    } catch (touchStartError) {
+        console.error(`    ❌ Error adding touchstart listener:`, touchStartError);
+        throw touchStartError;
+    }
     
     // Handle touch end
+    console.log(`    🔸 Setting up touchend listener...`);
     const touchEndHandler = (e) => {
         const now = Date.now();
         // Global debounce: prevent rapid clicks across all buttons
@@ -64,9 +75,16 @@ function addMobileFriendlyListener(element, handler) {
             touchStateMap.set(element, true);
         }
     };
-    element.addEventListener('touchend', touchEndHandler, { passive: false });
+    try {
+        element.addEventListener('touchend', touchEndHandler, { passive: false });
+        console.log(`    ✅ touchend listener added`);
+    } catch (touchEndError) {
+        console.error(`    ❌ Error adding touchend listener:`, touchEndError);
+        throw touchEndError;
+    }
     
     // Handle click events (for desktop and as fallback)
+    console.log(`    🔸 Setting up click listener...`);
     const clickHandler = (e) => {
         const now = Date.now();
         // Global debounce: prevent rapid clicks
@@ -103,7 +121,13 @@ function addMobileFriendlyListener(element, handler) {
             console.error('Error in click handler:', error);
         }
     };
-    element.addEventListener('click', clickHandler);
+    try {
+        element.addEventListener('click', clickHandler);
+        console.log(`    ✅ click listener added`);
+    } catch (clickError) {
+        console.error(`    ❌ Error adding click listener:`, clickError);
+        throw clickError;
+    }
     
     // Store handlers on element for potential cleanup (though not strictly necessary with innerHTML)
     if (!element._mobileListeners) {
@@ -115,6 +139,7 @@ function addMobileFriendlyListener(element, handler) {
     }
     
     const listenerTime = performance.now() - listenerStartTime;
+    console.log(`    ✅ addMobileFriendlyListener completed for ${elementType} (${elementId}) in ${listenerTime.toFixed(2)}ms`);
     if (listenerTime > 1) {
         console.warn(`⚠️ addMobileFriendlyListener took ${listenerTime.toFixed(2)}ms for ${elementType}`);
     }
@@ -1453,6 +1478,7 @@ function setupClickTracking() {
         console.log(`📦 Processing card batch: ${processedCards} to ${endIndex} (batch size: ${endIndex - processedCards})`);
         
         for (let i = processedCards; i < endIndex; i++) {
+            console.log(`  🔹 Processing card ${i}...`);
             const card = cards[i];
             if (!card) {
                 console.warn(`⚠️ Card at index ${i} is null, skipping`);
@@ -1460,6 +1486,7 @@ function setupClickTracking() {
             }
             
             try {
+                console.log(`  🔹 Creating handler for card ${i}...`);
         // Handle card flip on click (mobile-friendly)
         const handleCardClick = async (e) => {
             try {
@@ -1510,12 +1537,20 @@ function setupClickTracking() {
             }
         };
         
+                console.log(`  🔹 About to call addMobileFriendlyListener for card ${i}...`);
                 addMobileFriendlyListener(card, handleCardClick);
+                console.log(`  ✅ Successfully added listener for card ${i}`);
             } catch (cardError) {
                 console.error(`❌ Error setting up listener for card ${i}:`, cardError);
                 console.error('Card error stack:', cardError.stack);
+                console.error('Card error details:', {
+                    message: cardError.message,
+                    name: cardError.name,
+                    stack: cardError.stack
+                });
             }
         }
+        console.log(`  ✅ Finished processing batch ${processedCards}-${endIndex}`);
         
         const batchTime = performance.now() - batchStartTime;
         console.log(`⏱️ Card batch ${processedCards}-${endIndex} took ${batchTime.toFixed(2)}ms`);
@@ -1527,12 +1562,20 @@ function setupClickTracking() {
         // If there are more cards, process next batch asynchronously
         if (processedCards < cards.length) {
             const nextBatchDelay = isMobile ? 50 : 10;
-            console.log(`⏳ Scheduling next batch in ${nextBatchDelay}ms...`);
+            console.log(`⏳ Scheduling next batch in ${nextBatchDelay}ms... (will process cards ${processedCards} to ${Math.min(processedCards + batchSize, cards.length)})`);
             // Use requestIdleCallback if available, otherwise setTimeout
             if (window.requestIdleCallback) {
-                requestIdleCallback(processCardBatch, { timeout: 1000 });
+                console.log(`  🔹 Using requestIdleCallback for next batch...`);
+                requestIdleCallback(() => {
+                    console.log(`  🎬 requestIdleCallback executing for batch ${processedCards}-${Math.min(processedCards + batchSize, cards.length)}...`);
+                    processCardBatch();
+                }, { timeout: 1000 });
             } else {
-                setTimeout(processCardBatch, nextBatchDelay);
+                console.log(`  🔹 Using setTimeout for next batch...`);
+                setTimeout(() => {
+                    console.log(`  🎬 setTimeout executing for batch ${processedCards}-${Math.min(processedCards + batchSize, cards.length)}...`);
+                    processCardBatch();
+                }, nextBatchDelay);
             }
         } else {
             // All cards processed, now setup star icons
