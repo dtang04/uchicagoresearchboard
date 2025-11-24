@@ -8,6 +8,9 @@ let filterButtons;
 let starredProfessors = new Set(); // Store as "name|department" keys
 let isViewingStarred = false;
 
+// Global debounce for all button handlers (shared across all buttons)
+let globalLastHandlerTime = 0;
+
 // Helper function to handle both click and touch events for mobile
 function addMobileFriendlyListener(element, handler) {
     if (!element) return;
@@ -16,7 +19,6 @@ function addMobileFriendlyListener(element, handler) {
     let touchStartX = 0;
     let touchStartY = 0;
     let touchHandled = false;
-    let lastHandlerTime = 0;
     
     // Track touch start
     element.addEventListener('touchstart', (e) => {
@@ -43,11 +45,11 @@ function addMobileFriendlyListener(element, handler) {
         );
         
         // Only handle if it was a quick tap (not a scroll or long press)
-        // Also prevent rapid-fire calls (debounce)
+        // Also prevent rapid-fire calls (debounce) - use global debounce
         const now = Date.now();
-        if (touchDuration < 300 && touchDistance < 10 && (now - lastHandlerTime) > 300) {
+        if (touchDuration < 300 && touchDistance < 10 && (now - globalLastHandlerTime) > 500) {
             touchHandled = true;
-            lastHandlerTime = now;
+            globalLastHandlerTime = now;
             e.preventDefault();
             e.stopPropagation();
             try {
@@ -60,9 +62,9 @@ function addMobileFriendlyListener(element, handler) {
     
     // Handle click events (for desktop and as fallback)
     element.addEventListener('click', (e) => {
-        // Prevent rapid-fire calls (debounce)
+        // Prevent rapid-fire calls (debounce) - use global debounce
         const now = Date.now();
-        if ((now - lastHandlerTime) < 300) {
+        if ((now - globalLastHandlerTime) < 500) {
             e.preventDefault();
             e.stopPropagation();
             return;
@@ -70,7 +72,7 @@ function addMobileFriendlyListener(element, handler) {
         
         // If touch was handled, prevent the click (mobile browsers fire click after touch)
         if (!touchHandled) {
-            lastHandlerTime = now;
+            globalLastHandlerTime = now;
             try {
                 handler(e);
             } catch (error) {
@@ -163,8 +165,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Prevent multiple simultaneous searches
+// Prevent multiple simultaneous searches - global state
 let isSearching = false;
+let lastSearchTime = 0;
+let currentSearchController = null; // For cancelling in-flight requests
 
 async function handleSearch() {
     // Prevent multiple simultaneous searches
@@ -172,6 +176,14 @@ async function handleSearch() {
         console.log('Search already in progress, skipping...');
         return;
     }
+    
+    // Debounce: prevent rapid-fire searches (even if not currently searching)
+    const now = Date.now();
+    if ((now - lastSearchTime) < 500) {
+        console.log('Search debounced, too soon after last search');
+        return;
+    }
+    lastSearchTime = now;
     
     if (!searchInput) {
         console.error('searchInput is not available');
@@ -185,6 +197,12 @@ async function handleSearch() {
         return;
     }
     
+    // Cancel any previous in-flight requests
+    if (currentSearchController) {
+        currentSearchController.abort();
+    }
+    currentSearchController = new AbortController();
+    
     isSearching = true;
     showLoading();
     
@@ -192,7 +210,8 @@ async function handleSearch() {
     
     try {
         const searchStart = performance.now();
-        const results = await searchDepartments(query);
+        const signal = currentSearchController ? currentSearchController.signal : null;
+        const results = await searchDepartments(query, signal);
         const searchTime = performance.now() - searchStart;
         console.log(`[Performance] Search took ${searchTime.toFixed(2)}ms, found ${results.length} results`);
         
@@ -204,6 +223,11 @@ async function handleSearch() {
         const totalTime = performance.now() - startTime;
         console.log(`[Performance] Total time: ${totalTime.toFixed(2)}ms`);
     } catch (error) {
+        // Don't show error if it was aborted (cancelled)
+        if (error.name === 'AbortError') {
+            console.log('Search was cancelled');
+            return;
+        }
         console.error('Error in search:', error);
         if (resultsContainer) {
             resultsContainer.innerHTML = `
@@ -215,6 +239,7 @@ async function handleSearch() {
         }
     } finally {
         isSearching = false;
+        currentSearchController = null;
     }
 }
 
@@ -512,11 +537,16 @@ function fuzzyMatch(query, target, threshold = 0.6) {
  * Unified search function that searches across departments, professors, and research areas
  * Uses fuzzy matching for typo tolerance and filters out low-relevance results
  */
-async function searchDepartments(query) {
+async function searchDepartments(query, signal = null) {
     const normalizedQuery = query.toLowerCase().trim();
     
     if (!normalizedQuery) {
         return [];
+    }
+    
+    // Check if search was cancelled
+    if (signal && signal.aborted) {
+        throw new Error('Search was cancelled');
     }
     
     // Detect if query is specific (multi-word or looks like a full name/term) vs partial
@@ -525,6 +555,11 @@ async function searchDepartments(query) {
     
     // Get all departments data
     const allDepartmentsData = await getAllDepartmentsData();
+    
+    // Check again if search was cancelled
+    if (signal && signal.aborted) {
+        throw new Error('Search was cancelled');
+    }
     const allDepartments = Object.keys(allDepartmentsData);
     
     // Build search results with relevance scores
