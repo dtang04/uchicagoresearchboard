@@ -866,23 +866,16 @@ async function displayResults(query, professors, signal = null) {
     }
     
     // Get trending labs dynamically based on click analytics
+    // IMPORTANT: Only fetch trending labs for the department the user searched for,
+    // NOT for all departments that appear in the results
     let trendingLabNames = [];
     if (signal && signal.aborted) {
         return;
     }
     
-    if (isSingleDepartment) {
-        trendingLabNames = await getTrendingLabs(normalizedDepartmentName, signal);
-    } else {
-        // For multi-department searches, collect trending labs from all departments
-        const allTrendingLabs = new Set();
-        for (const dept of uniqueDepartments) {
-            if (signal && signal.aborted) break;
-            const deptTrending = await getTrendingLabs(dept, signal);
-            deptTrending.forEach(lab => allTrendingLabs.add(lab));
-        }
-        trendingLabNames = Array.from(allTrendingLabs);
-    }
+    // Always use the searched department name, not the departments in results
+    // This prevents fetching trending labs for multiple departments when user searches for one
+    trendingLabNames = await getTrendingLabs(normalizedDepartmentName, signal);
     
     if (signal && signal.aborted) {
         return;
