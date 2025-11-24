@@ -11,38 +11,57 @@ let isViewingStarred = false;
 // Global debounce for all button handlers (shared across all buttons)
 let globalLastHandlerTime = 0;
 
+// Global WeakMap to store touchHandled state per element (shared across all listeners)
+const touchStateMap = new WeakMap();
+
 // Helper function to handle both click and touch events for mobile
 function addMobileFriendlyListener(element, handler) {
     if (!element) return;
     
-    let touchHandled = false;
-    
     // Track touch start
-    element.addEventListener('touchstart', (e) => {
-        touchHandled = false;
-    }, { passive: true });
+    const touchStartHandler = (e) => {
+        touchStateMap.set(element, false);
+    };
+    element.addEventListener('touchstart', touchStartHandler, { passive: true });
     
     // Handle touch end
-    element.addEventListener('touchend', (e) => {
+    const touchEndHandler = (e) => {
         const now = Date.now();
         // Global debounce: prevent rapid clicks across all buttons
         if ((now - globalLastHandlerTime) < 500) {
+            e.preventDefault();
+            e.stopPropagation();
             return;
         }
         
-        touchHandled = true;
+        // Mark as handled BEFORE calling handler to prevent race conditions
+        touchStateMap.set(element, true);
         globalLastHandlerTime = now;
+        
+        // Prevent default to stop click event
         e.preventDefault();
         e.stopPropagation();
+        
         try {
-            handler(e);
+            const result = handler(e);
+            // If handler returns a promise, catch any rejections
+            if (result && typeof result.catch === 'function') {
+                result.catch(error => {
+                    console.error('Error in async touch handler:', error);
+                    // Even on error, mark as handled to prevent click from firing
+                    touchStateMap.set(element, true);
+                });
+            }
         } catch (error) {
             console.error('Error in touch handler:', error);
+            // Even on error, mark as handled to prevent click from firing
+            touchStateMap.set(element, true);
         }
-    }, { passive: false });
+    };
+    element.addEventListener('touchend', touchEndHandler, { passive: false });
     
     // Handle click events (for desktop and as fallback)
-    element.addEventListener('click', (e) => {
+    const clickHandler = (e) => {
         const now = Date.now();
         // Global debounce: prevent rapid clicks
         if ((now - globalLastHandlerTime) < 500) {
@@ -51,17 +70,43 @@ function addMobileFriendlyListener(element, handler) {
             return;
         }
         
-        // If touch was handled, prevent the click (mobile browsers fire click after touch)
-        if (!touchHandled) {
-            globalLastHandlerTime = now;
-            try {
-                handler(e);
-            } catch (error) {
-                console.error('Error in click handler:', error);
-            }
+        // Check if touch was handled (mobile browsers fire click after touch)
+        const wasTouchHandled = touchStateMap.get(element) === true;
+        
+        if (wasTouchHandled) {
+            // Touch already handled this - prevent click from firing
+            e.preventDefault();
+            e.stopPropagation();
+            touchStateMap.set(element, false); // Reset for next interaction
+            return;
         }
-        touchHandled = false;
-    });
+        
+        // This is a real click (desktop or no touch occurred)
+        globalLastHandlerTime = now;
+        touchStateMap.set(element, false); // Reset state
+        
+        try {
+            const result = handler(e);
+            // If handler returns a promise, catch any rejections
+            if (result && typeof result.catch === 'function') {
+                result.catch(error => {
+                    console.error('Error in async click handler:', error);
+                });
+            }
+        } catch (error) {
+            console.error('Error in click handler:', error);
+        }
+    };
+    element.addEventListener('click', clickHandler);
+    
+    // Store handlers on element for potential cleanup (though not strictly necessary with innerHTML)
+    if (!element._mobileListeners) {
+        element._mobileListeners = {
+            touchstart: touchStartHandler,
+            touchend: touchEndHandler,
+            click: clickHandler
+        };
+    }
 }
 
 // Initialize
@@ -99,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const dept = btn.getAttribute('data-dept');
         console.log(`Setting up filter button ${index}: ${dept}`);
         
-        addMobileFriendlyListener(btn, (e) => {
+        addMobileFriendlyListener(btn, async (e) => {
             try {
                 console.log(`Filter button clicked: ${dept}`);
                 if (!searchInput) {
@@ -107,7 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 searchInput.value = dept;
-                handleSearch();
+                // Await handleSearch to catch any errors properly
+                await handleSearch();
             } catch (error) {
                 console.error('Error in filter button handler:', error);
                 // Prevent page crash by showing error instead
@@ -116,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="no-results">
                             <h3>Error</h3>
                             <p>An error occurred. Please try again.</p>
+                            <p style="font-size: 0.875rem; color: var(--text-tertiary); margin-top: 8px;">${error.message || 'Unknown error'}</p>
                         </div>
                     `;
                 }
@@ -1173,27 +1220,48 @@ function setupClickTracking() {
     // Track clicks on email links
     document.querySelectorAll('.email-link').forEach(link => {
         link.addEventListener('click', async (e) => {
-            const professorName = link.getAttribute('data-professor');
-            const departmentName = link.getAttribute('data-department');
-            await trackClick(professorName, departmentName, 'email');
+            try {
+                const professorName = link.getAttribute('data-professor');
+                const departmentName = link.getAttribute('data-department');
+                // Don't await - fire and forget to prevent blocking link navigation
+                trackClick(professorName, departmentName, 'email').catch(err => {
+                    console.error('Error tracking email click:', err);
+                });
+            } catch (error) {
+                console.error('Error in email link handler:', error);
+            }
         });
     });
     
     // Track clicks on lab website links
     document.querySelectorAll('.lab-link').forEach(link => {
         link.addEventListener('click', async (e) => {
-            const professorName = link.getAttribute('data-professor');
-            const departmentName = link.getAttribute('data-department');
-            await trackClick(professorName, departmentName, 'lab-website');
+            try {
+                const professorName = link.getAttribute('data-professor');
+                const departmentName = link.getAttribute('data-department');
+                // Don't await - fire and forget to prevent blocking link navigation
+                trackClick(professorName, departmentName, 'lab-website').catch(err => {
+                    console.error('Error tracking lab link click:', err);
+                });
+            } catch (error) {
+                console.error('Error in lab link handler:', error);
+            }
         });
     });
     
     // Track clicks on personal website links
     document.querySelectorAll('.website-link').forEach(link => {
         link.addEventListener('click', async (e) => {
-            const professorName = link.getAttribute('data-professor');
-            const departmentName = link.getAttribute('data-department');
-            await trackClick(professorName, departmentName, 'personal-website');
+            try {
+                const professorName = link.getAttribute('data-professor');
+                const departmentName = link.getAttribute('data-department');
+                // Don't await - fire and forget to prevent blocking link navigation
+                trackClick(professorName, departmentName, 'personal-website').catch(err => {
+                    console.error('Error tracking website link click:', err);
+                });
+            } catch (error) {
+                console.error('Error in website link handler:', error);
+            }
         });
     });
     
@@ -1204,33 +1272,50 @@ function setupClickTracking() {
     cards.forEach((card, index) => {
         // Handle card flip on click (mobile-friendly)
         const handleCardClick = async (e) => {
-            // Don't flip if clicking on links or star icon
-            const clickedLink = e.target.closest('a');
-            const clickedStar = e.target.closest('.star-icon-container');
-            if (clickedLink || clickedStar) {
-                return; // Let the link/star handle its own click
-            }
-            
-            const professorName = card.getAttribute('data-professor');
-            const departmentName = card.getAttribute('data-department');
-            
-            if (professorName && departmentName) {
-                // Track the click
-                await trackClick(professorName, departmentName, 'card');
+            try {
+                // Don't flip if clicking on links or star icon
+                const clickedLink = e.target.closest('a');
+                const clickedStar = e.target.closest('.star-icon-container');
+                if (clickedLink || clickedStar) {
+                    return; // Let the link/star handle its own click
+                }
                 
-                // Toggle flip
-                const cardInner = card.querySelector('.card-inner');
-                if (cardInner) {
-                    const isFlipped = cardInner.classList.contains('flipped');
+                const professorName = card.getAttribute('data-professor');
+                const departmentName = card.getAttribute('data-department');
+                
+                if (professorName && departmentName) {
+                    // Track the click (don't await - fire and forget to prevent blocking)
+                    trackClick(professorName, departmentName, 'card').catch(err => {
+                        console.error('Error tracking click:', err);
+                    });
                     
-                    if (!isFlipped) {
-                        // Flipping to back - load stats (using placeholders for now)
-                        cardInner.classList.add('flipped');
-                        loadProfessorStats(card, professorName, departmentName);
-                    } else {
-                        // Flipping back to front
-                        cardInner.classList.remove('flipped');
+                    // Toggle flip
+                    const cardInner = card.querySelector('.card-inner');
+                    if (cardInner) {
+                        const isFlipped = cardInner.classList.contains('flipped');
+                        
+                        if (!isFlipped) {
+                            // Flipping to back - load stats (using placeholders for now)
+                            cardInner.classList.add('flipped');
+                            loadProfessorStats(card, professorName, departmentName).catch(err => {
+                                console.error('Error loading professor stats:', err);
+                            });
+                        } else {
+                            // Flipping back to front
+                            cardInner.classList.remove('flipped');
+                        }
                     }
+                }
+            } catch (error) {
+                console.error('Error in card click handler:', error);
+                // Prevent crash - try to recover by at least toggling the flip state
+                try {
+                    const cardInner = card.querySelector('.card-inner');
+                    if (cardInner) {
+                        cardInner.classList.toggle('flipped');
+                    }
+                } catch (recoveryError) {
+                    console.error('Error in recovery:', recoveryError);
                 }
             }
         };
