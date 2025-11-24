@@ -41,8 +41,11 @@ function generateToken(userId, email) {
  */
 function verifyToken(token) {
     try {
-        return jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET);
+        console.log('Token verified successfully:', { userId: decoded.userId, email: decoded.email });
+        return decoded;
     } catch (error) {
+        console.error('Token verification failed:', error.message);
         return null;
     }
 }
@@ -54,15 +57,20 @@ function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
+    console.log('Auth middleware: Request to', req.path, '- Token received:', token ? 'Yes' : 'No');
+    
     if (!token) {
+        console.log('Auth middleware: No token provided');
         return res.status(401).json({ error: 'No token provided' });
     }
 
     const decoded = verifyToken(token);
     if (!decoded) {
+        console.log('Auth middleware: Token verification failed');
         return res.status(403).json({ error: 'Invalid or expired token' });
     }
 
+    console.log('Auth middleware: Token verified, userId:', decoded.userId);
     req.user = decoded;
     next();
 }

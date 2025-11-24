@@ -42,7 +42,7 @@ app.get('/api/health', (req, res) => {
 // Request logging middleware
 app.use((req, res, next) => {
     if (process.env.NODE_ENV === 'production' && !req.path.startsWith('/health')) {
-        console.log(`${req.method} ${req.path}`);
+        console.log(`${req.method} ${req.path}${req.path === '/api/auth/me' ? ' [AUTH ME REQUEST]' : ''}`);
     }
     next();
 });
@@ -669,6 +669,7 @@ if (shouldServeStatic) {
     // Serve index.html for all non-API routes (SPA routing)
     app.get('*', (req, res) => {
         if (req.path.startsWith('/api')) {
+            console.log(`[404] API route not found: ${req.method} ${req.path}`);
             return res.status(404).json({ error: 'Not found' });
         }
         const indexPath = path.resolve(staticPath, 'index.html');
