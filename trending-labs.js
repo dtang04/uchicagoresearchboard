@@ -11,24 +11,34 @@ let trendingLabsCache = {
 /**
  * Get trending labs for a department from backend database
  * @param {string} departmentName - Name of the department
+ * @param {AbortSignal} signal - Optional abort signal to cancel the request
  * @returns {Promise<Array<string>>} Array of lab names or professor names that are trending
  */
-async function getTrendingLabs(departmentName) {
-    // Normalize department name for cache key and API call
+async function getTrendingLabs(departmentName, signal = null) {
+    if (signal && signal.aborted) {
+        return [];
+    }
+    
     const normalizedDept = departmentName.toLowerCase().trim();
     
     // Check cache first
     if (trendingLabsCache.data && trendingLabsCache.timestamp) {
         const age = Date.now() - trendingLabsCache.timestamp;
         if (age < trendingLabsCache.ttl && trendingLabsCache.data[normalizedDept]) {
-            console.log(`[Trending Labs] Using cached data for ${departmentName}:`, trendingLabsCache.data[normalizedDept]);
             return trendingLabsCache.data[normalizedDept];
         }
     }
     
+    if (signal && signal.aborted) {
+        return [];
+    }
+    
     try {
-        // Fetch trending labs from backend API
-        const trendingData = await fetchTrendingLabsFromBackend(departmentName);
+        const trendingData = await fetchTrendingLabsFromBackend(departmentName, signal);
+        
+        if (signal && signal.aborted) {
+            return [];
+        }
         
         // Update cache
         if (!trendingLabsCache.data) {
@@ -39,6 +49,9 @@ async function getTrendingLabs(departmentName) {
         
         return trendingData;
     } catch (error) {
+        if (error.name === 'AbortError') {
+            return [];
+        }
         console.error('Error fetching trending labs:', error);
         return [];
     }
@@ -55,25 +68,27 @@ function clearTrendingLabsCache() {
 /**
  * Fetch trending labs from backend API
  * @param {string} departmentName - Name of the department
+ * @param {AbortSignal} signal - Optional abort signal to cancel the request
  * @returns {Promise<Array<string>>} Array of trending lab names
  */
-async function fetchTrendingLabsFromBackend(departmentName) {
+async function fetchTrendingLabsFromBackend(departmentName, signal = null) {
     try {
-        // Normalize department name for API call
+        if (signal && signal.aborted) {
+            return [];
+        }
+        
         const normalizedDept = departmentName.toLowerCase().trim();
-        
-        // Get API base URL from config.js
         const API_BASE = window.API_BASE_URL || 'http://localhost:3001/api';
-        const API_URL = `${API_BASE}/trending-labs`;
         
-        const response = await fetch(API_URL, {
+        const response = await fetch(`${API_BASE}/trending-labs`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 department: normalizedDept
-            })
+            }),
+            signal: signal || undefined
         });
         
         if (!response.ok) {
@@ -81,10 +96,11 @@ async function fetchTrendingLabsFromBackend(departmentName) {
         }
         
         const data = await response.json();
-        const trendingLabs = data.trendingLabs || [];
-        console.log(`[Trending Labs] Backend returned for ${departmentName}:`, trendingLabs);
-        return trendingLabs;
+        return data.trendingLabs || [];
     } catch (error) {
+        if (error.name === 'AbortError') {
+            return [];
+        }
         console.error('[Trending Labs] Backend API error:', error.message);
         return [];
     }
