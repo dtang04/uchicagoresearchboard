@@ -16,7 +16,13 @@ const touchStateMap = new WeakMap();
 
 // Helper function to handle both click and touch events for mobile
 function addMobileFriendlyListener(element, handler) {
-    if (!element) return;
+    if (!element) {
+        console.warn('⚠️ addMobileFriendlyListener: element is null/undefined');
+        return;
+    }
+    
+    const listenerStartTime = performance.now();
+    const elementType = element.className || element.tagName || 'unknown';
     
     // Track touch start
     const touchStartHandler = (e) => {
@@ -107,10 +113,36 @@ function addMobileFriendlyListener(element, handler) {
             click: clickHandler
         };
     }
+    
+    const listenerTime = performance.now() - listenerStartTime;
+    if (listenerTime > 1) {
+        console.warn(`⚠️ addMobileFriendlyListener took ${listenerTime.toFixed(2)}ms for ${elementType}`);
+    }
 }
+
+// Global error handlers for debugging
+window.addEventListener('error', (event) => {
+    console.error('🚨 Global error caught:', {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        error: event.error,
+        stack: event.error?.stack
+    });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('🚨 Unhandled promise rejection:', {
+        reason: event.reason,
+        promise: event.promise,
+        stack: event.reason?.stack
+    });
+});
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 DOM Content Loaded - Initializing...');
     // Initialize DOM elements
     searchInput = document.getElementById('departmentSearch');
     searchButton = document.getElementById('searchButton');
@@ -145,17 +177,28 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Setting up filter button ${index}: ${dept}`);
         
         addMobileFriendlyListener(btn, async (e) => {
+            const filterClickStartTime = performance.now();
             try {
-                console.log(`Filter button clicked: ${dept}`);
+                console.log(`🔘 Filter button clicked: ${dept} (at ${new Date().toISOString()})`);
                 if (!searchInput) {
-                    console.error('searchInput is not available');
+                    console.error('❌ searchInput is not available');
                     return;
                 }
                 searchInput.value = dept;
+                console.log(`🔍 Starting search for: ${dept}`);
                 // Await handleSearch to catch any errors properly
                 await handleSearch();
+                const searchTime = performance.now() - filterClickStartTime;
+                console.log(`✅ Filter button search completed in ${searchTime.toFixed(2)}ms`);
             } catch (error) {
-                console.error('Error in filter button handler:', error);
+                const errorTime = performance.now() - filterClickStartTime;
+                console.error(`❌ Error in filter button handler after ${errorTime.toFixed(2)}ms:`, error);
+                console.error('Filter button error stack:', error.stack);
+                console.error('Error details:', {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack
+                });
                 // Prevent page crash by showing error instead
                 if (resultsContainer) {
                     resultsContainer.innerHTML = `
@@ -1217,21 +1260,49 @@ async function displayResults(query, professors, signal = null) {
             };
             
             // Start animations
+            console.log(`🎬 Starting card animations for ${cards.length} cards (mobile: ${isMobile})`);
+            console.log(`📊 Memory before animations: ${performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB` : 'N/A'}`);
+            const animationStartTime = performance.now();
             animateCards();
+            const animationSetupTime = performance.now() - animationStartTime;
+            console.log(`⏱️ Animation setup took ${animationSetupTime.toFixed(2)}ms`);
+            if (performance.memory) {
+                console.log(`📊 Memory after animations: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+            }
             
             // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
             // Use requestAnimationFrame to batch DOM operations
+            console.log(`⏳ Scheduling click tracking setup (delay: ${isMobile ? 200 : 100}ms)`);
             requestAnimationFrame(() => {
                 setTimeout(() => {
+                    console.log(`🔍 Starting click tracking setup...`);
+                    const trackingStartTime = performance.now();
+                    
                     // Final check before setting up tracking
                     if (animationSignal && animationSignal.aborted) {
+                        console.log(`❌ Search was aborted, skipping click tracking`);
                         return;
                     }
                     try {
+                        if (performance.memory) {
+                            console.log(`📊 Memory before click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                        }
                         setupClickTracking();
+                        const trackingTime = performance.now() - trackingStartTime;
+                        console.log(`⏱️ Click tracking setup took ${trackingTime.toFixed(2)}ms`);
+                        if (performance.memory) {
+                            console.log(`📊 Memory after click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                        }
+                        
+                        const updateStartTime = performance.now();
                         updateStarIcons();
+                        console.log(`⏱️ Star icon update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
+                        if (performance.memory) {
+                            console.log(`📊 Memory after star update: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
+                        }
                     } catch (error) {
-                        console.error('Error setting up click tracking:', error);
+                        console.error('❌ Error setting up click tracking:', error);
+                        console.error('Error stack:', error.stack);
                         // Try to recover - at least show the cards even if tracking fails
                         const cards = resultsContainer.querySelectorAll('.professor-card');
                         cards.forEach(card => {
@@ -1310,19 +1381,27 @@ function setupClickTracking() {
     
     // Track clicks on professor cards and handle flip
     const cards = document.querySelectorAll('.professor-card');
-    console.log(`🔍 Setting up click tracking for ${cards.length} cards`);
+    console.log(`🔍 Setting up click tracking for ${cards.length} cards (mobile: ${isMobile})`);
     
     // Batch event listener setup to prevent overwhelming mobile browsers
     // Process in smaller chunks on mobile
     const batchSize = isMobile ? 10 : 50;
     let processedCards = 0;
+    const cardSetupStartTime = performance.now();
     
     const processCardBatch = () => {
+        const batchStartTime = performance.now();
         const endIndex = Math.min(processedCards + batchSize, cards.length);
+        console.log(`📦 Processing card batch: ${processedCards} to ${endIndex} (batch size: ${endIndex - processedCards})`);
         
         for (let i = processedCards; i < endIndex; i++) {
             const card = cards[i];
-            if (!card) continue;
+            if (!card) {
+                console.warn(`⚠️ Card at index ${i} is null, skipping`);
+                continue;
+            }
+            
+            try {
         // Handle card flip on click (mobile-friendly)
         const handleCardClick = async (e) => {
             try {
@@ -1373,40 +1452,61 @@ function setupClickTracking() {
             }
         };
         
-            addMobileFriendlyListener(card, handleCardClick);
+                addMobileFriendlyListener(card, handleCardClick);
+            } catch (cardError) {
+                console.error(`❌ Error setting up listener for card ${i}:`, cardError);
+                console.error('Card error stack:', cardError.stack);
+            }
         }
         
+        const batchTime = performance.now() - batchStartTime;
+        console.log(`⏱️ Card batch ${processedCards}-${endIndex} took ${batchTime.toFixed(2)}ms`);
+        
         processedCards = endIndex;
+        const totalTime = performance.now() - cardSetupStartTime;
+        console.log(`📊 Progress: ${processedCards}/${cards.length} cards processed (${((processedCards/cards.length)*100).toFixed(1)}%) - Total time: ${totalTime.toFixed(2)}ms`);
         
         // If there are more cards, process next batch asynchronously
         if (processedCards < cards.length) {
+            const nextBatchDelay = isMobile ? 50 : 10;
+            console.log(`⏳ Scheduling next batch in ${nextBatchDelay}ms...`);
             // Use requestIdleCallback if available, otherwise setTimeout
             if (window.requestIdleCallback) {
                 requestIdleCallback(processCardBatch, { timeout: 1000 });
             } else {
-                setTimeout(processCardBatch, isMobile ? 50 : 10);
+                setTimeout(processCardBatch, nextBatchDelay);
             }
         } else {
             // All cards processed, now setup star icons
+            const totalCardTime = performance.now() - cardSetupStartTime;
+            console.log(`✅ All ${cards.length} cards processed in ${totalCardTime.toFixed(2)}ms`);
+            console.log(`⭐ Starting star icon setup...`);
+            const starSetupStartTime = performance.now();
             try {
                 setupStarIcons();
-                console.log(`✅ Click tracking setup complete for ${cards.length} cards`);
+                const starSetupTime = performance.now() - starSetupStartTime;
+                console.log(`✅ Star icon setup complete in ${starSetupTime.toFixed(2)}ms`);
+                console.log(`✅ Click tracking setup complete for ${cards.length} cards (total: ${(performance.now() - cardSetupStartTime).toFixed(2)}ms)`);
             } catch (error) {
-                console.error('Error setting up star icons:', error);
+                console.error('❌ Error setting up star icons:', error);
+                console.error('Star icon error stack:', error.stack);
             }
         }
     };
     
     // Start processing cards in batches
     if (cards.length > 0) {
+        console.log(`🚀 Starting card batch processing (batch size: ${batchSize})...`);
         processCardBatch();
     } else {
         // No cards, just setup star icons
+        console.log(`⚠️ No cards found, setting up star icons only...`);
         try {
             setupStarIcons();
             console.log(`✅ Click tracking setup complete for 0 cards`);
         } catch (error) {
-            console.error('Error setting up star icons:', error);
+            console.error('❌ Error setting up star icons:', error);
+            console.error('Star icon error stack:', error.stack);
         }
     }
 }
@@ -1415,17 +1515,26 @@ function setupClickTracking() {
 function setupStarIcons() {
     const containers = document.querySelectorAll('.star-icon-container');
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    console.log(`⭐ Setting up ${containers.length} star icons (mobile: ${isMobile})`);
     
     // Batch processing for star icons too
     const batchSize = isMobile ? 15 : 50;
     let processed = 0;
+    const starSetupStartTime = performance.now();
     
     const processStarBatch = () => {
+        const batchStartTime = performance.now();
         const endIndex = Math.min(processed + batchSize, containers.length);
+        console.log(`⭐ Processing star batch: ${processed} to ${endIndex} (batch size: ${endIndex - processed})`);
         
         for (let i = processed; i < endIndex; i++) {
             const container = containers[i];
-            if (!container) continue;
+            if (!container) {
+                console.warn(`⚠️ Star container at index ${i} is null, skipping`);
+                continue;
+            }
+            
+            try {
             
             const handleStarClick = async (e) => {
                 e.stopPropagation(); // Prevent card flip
@@ -1483,25 +1592,42 @@ function setupStarIcons() {
                 }
             };
             
-            addMobileFriendlyListener(container, handleStarClick);
+                addMobileFriendlyListener(container, handleStarClick);
+            } catch (starError) {
+                console.error(`❌ Error setting up listener for star ${i}:`, starError);
+                console.error('Star error stack:', starError.stack);
+            }
         }
         
+        const batchTime = performance.now() - batchStartTime;
+        console.log(`⏱️ Star batch ${processed}-${endIndex} took ${batchTime.toFixed(2)}ms`);
+        
         processed = endIndex;
+        const totalTime = performance.now() - starSetupStartTime;
+        console.log(`📊 Star progress: ${processed}/${containers.length} stars processed (${((processed/containers.length)*100).toFixed(1)}%) - Total time: ${totalTime.toFixed(2)}ms`);
         
         // If there are more containers, process next batch asynchronously
         if (processed < containers.length) {
+            const nextBatchDelay = isMobile ? 50 : 10;
+            console.log(`⏳ Scheduling next star batch in ${nextBatchDelay}ms...`);
             // Use requestIdleCallback if available, otherwise setTimeout
             if (window.requestIdleCallback) {
                 requestIdleCallback(processStarBatch, { timeout: 1000 });
             } else {
-                setTimeout(processStarBatch, isMobile ? 50 : 10);
+                setTimeout(processStarBatch, nextBatchDelay);
             }
+        } else {
+            const totalStarTime = performance.now() - starSetupStartTime;
+            console.log(`✅ All ${containers.length} star icons processed in ${totalStarTime.toFixed(2)}ms`);
         }
     };
     
     // Start processing star icons in batches
     if (containers.length > 0) {
+        console.log(`🚀 Starting star icon batch processing (batch size: ${batchSize})...`);
         processStarBatch();
+    } else {
+        console.log(`⚠️ No star icons found`);
     }
 }
 
