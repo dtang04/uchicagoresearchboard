@@ -121,8 +121,17 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
                 }
                 
                 // Create new user
+                console.log('OAuth: Creating new user:', { email, name, googleId });
                 const userId = await db.createUser(email, null, name, googleId);
+                console.log('OAuth: User created with ID:', userId);
                 user = await db.getUserById(userId);
+                
+                if (!user) {
+                    console.error('OAuth: Failed to retrieve user after creation, ID:', userId);
+                    return done(new Error('Failed to create user'), null);
+                }
+                
+                console.log('OAuth: User retrieved successfully:', { id: user.id, email: user.email });
             }
             
             return done(null, user);
@@ -439,6 +448,13 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
             try {
                 const user = req.user;
                 
+                if (!user || !user.id) {
+                    console.error('OAuth callback: User object is missing or invalid:', user);
+                    return res.redirect(`${FRONTEND_URL}?auth_error=user_creation_failed`);
+                }
+                
+                console.log('OAuth callback: User authenticated successfully:', { id: user.id, email: user.email });
+                
                 // Generate JWT token
                 const token = auth.generateToken(user.id, user.email);
                 
@@ -467,10 +483,16 @@ if (GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET) {
 // Get current user (verify token)
 app.get('/api/auth/me', auth.authenticateToken, async (req, res) => {
     try {
-        const user = await db.getUserById(req.user.userId);
+        const userId = req.user.userId;
+        console.log('Auth /me: Looking up user with ID:', userId);
+        
+        const user = await db.getUserById(userId);
         if (!user) {
+            console.error('Auth /me: User not found with ID:', userId);
             return res.status(404).json({ error: 'User not found' });
         }
+        
+        console.log('Auth /me: User found:', { id: user.id, email: user.email });
         
         res.json({
             user: {
