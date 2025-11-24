@@ -1223,13 +1223,48 @@ async function displayResults(query, professors, signal = null) {
         `;
     }
     
-    // Smooth transition when updating results
-    resultsContainer.style.opacity = '0';
-    resultsContainer.style.transform = 'translateY(20px)';
-    resultsContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    // Detect mobile early
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // Store signal in closure for animation checks
     const animationSignal = signal;
+    
+    // On mobile: instant update, no animations
+    if (isMobile) {
+        console.log('📱 Mobile detected - using instant update (no animations)');
+        // Check if search was cancelled
+        if (animationSignal && animationSignal.aborted) {
+            console.log('❌ Search was aborted');
+            return;
+        }
+        
+        console.log('📝 Setting innerHTML (length: ' + resultsHTML.length + ' chars)...');
+        // Reset click tracking flag when replacing content
+        clickTrackingSetup = false;
+        try {
+            resultsContainer.innerHTML = resultsHTML;
+            console.log('✅ innerHTML set successfully');
+            
+            // Immediately set up click tracking (no delay needed on mobile)
+            console.log('🚀 Setting up click tracking immediately...');
+            try {
+                setupClickTracking();
+                updateStarIcons();
+                console.log('✅ Click tracking setup complete');
+            } catch (error) {
+                console.error('❌ Error setting up click tracking:', error);
+            }
+        } catch (innerHTMLError) {
+            console.error('❌ Error setting innerHTML:', innerHTMLError);
+            throw innerHTMLError;
+        }
+        return; // Exit early on mobile - no animations
+    }
+    
+    // Desktop: smooth transitions with animations
+    resultsContainer.style.opacity = '0';
+    resultsContainer.style.transform = 'translateY(20px)';
+    resultsContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
     
     setTimeout(() => {
         console.log('⏰ First setTimeout callback executing...');
@@ -1271,166 +1306,73 @@ async function displayResults(query, professors, signal = null) {
                 throw styleError;
             }
             
-            // Add animation classes to cards for staggered effect
-            // Limit animations to prevent memory issues on mobile
+            // Desktop: Add animation classes to cards for staggered effect
             console.log('🔍 Querying for professor cards...');
             const cards = resultsContainer.querySelectorAll('.professor-card');
             console.log(`📊 Found ${cards.length} cards to animate`);
-            const maxAnimatedCards = 50; // Limit to prevent memory issues
             
-            // Detect mobile to reduce animation complexity
-            const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-            const animationDelay = isMobile ? 0.02 : 0.05; // Faster on mobile to reduce load
-            
-            // Use requestAnimationFrame for better performance on mobile
+            const animationDelay = 0.05;
             const animateCards = () => {
-                console.log('🎬 animateCards() function called');
                 if (animationSignal && animationSignal.aborted) {
-                    console.log('❌ Animation signal aborted');
                     return;
                 }
                 
-                console.log(`🔄 Starting forEach loop for ${cards.length} cards...`);
-                let cardsProcessed = 0;
                 cards.forEach((card, index) => {
-                    cardsProcessed++;
-                    if (index === 0) {
-                        console.log(`📦 Processing first card (index ${index})...`);
-                    }
-                    if (index === Math.floor(cards.length / 2)) {
-                        console.log(`📦 Processing middle card (index ${index})...`);
-                    }
-                    if (index === cards.length - 1) {
-                        console.log(`📦 Processing last card (index ${index})...`);
-                    }
-                    if (index >= maxAnimatedCards) {
-                        // Skip animation for cards beyond limit to prevent crashes
-                        card.style.opacity = '1';
-                        card.style.transform = 'translateY(0) scale(1)';
-                        return;
-                    }
-                    
-                    // On mobile, skip complex animations to prevent crashes
-                    if (isMobile && index > 20) {
-                        card.style.opacity = '1';
-                        card.style.transform = 'translateY(0) scale(1)';
-                        return;
-                    }
-                    
                     card.style.opacity = '0';
                     card.style.transform = 'translateY(30px) scale(0.9)';
                     
-                    // Use requestAnimationFrame for smoother, less resource-intensive animations
-                    try {
-                        requestAnimationFrame(() => {
-                            setTimeout(() => {
-                                // Check if search was cancelled before animating
-                                if (animationSignal && animationSignal.aborted) {
-                                    return;
-                                }
-                                try {
-                                    card.style.transition = `opacity 0.5s ease ${index * animationDelay}s, transform 0.5s ease ${index * animationDelay}s`;
-                                    card.style.opacity = '1';
-                                    card.style.transform = 'translateY(0) scale(1)';
-                                } catch (cardStyleError) {
-                                    console.error(`❌ Error setting card ${index} styles:`, cardStyleError);
-                                }
-                            }, 50);
-                        });
-                    } catch (rafError) {
-                        console.error(`❌ Error in requestAnimationFrame for card ${index}:`, rafError);
-                    }
+                    requestAnimationFrame(() => {
+                        setTimeout(() => {
+                            if (animationSignal && animationSignal.aborted) {
+                                return;
+                            }
+                            card.style.transition = `opacity 0.5s ease ${index * animationDelay}s, transform 0.5s ease ${index * animationDelay}s`;
+                            card.style.opacity = '1';
+                            card.style.transform = 'translateY(0) scale(1)';
+                        }, 50);
+                    });
                 });
-                console.log(`✅ forEach loop completed, processed ${cardsProcessed} cards`);
             };
             
-            // Start animations
-            console.log(`🎬 Starting card animations for ${cards.length} cards (mobile: ${isMobile})`);
-            console.log(`📊 Memory before animations: ${performance.memory ? `${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB` : 'N/A'}`);
-            const animationStartTime = performance.now();
+            // Start animations (desktop only)
+            console.log(`🎬 Starting card animations for ${cards.length} cards`);
             animateCards();
-            const animationSetupTime = performance.now() - animationStartTime;
-            console.log(`⏱️ Animation setup took ${animationSetupTime.toFixed(2)}ms`);
-            if (performance.memory) {
-                console.log(`📊 Memory after animations: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-            }
             
-            // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
-            // On mobile, skip requestAnimationFrame to avoid nested async issues
-            const clickTrackingDelay = isMobile ? 200 : 100;
-            console.log(`⏳ Scheduling click tracking setup (delay: ${clickTrackingDelay}ms, mobile: ${isMobile})`);
+            // Desktop: Add click tracking with delay
+            const clickTrackingDelay = 100;
+            console.log(`⏳ Scheduling click tracking setup (delay: ${clickTrackingDelay}ms)`);
             
-            // On mobile, use a simple setTimeout to avoid nested async issues with requestAnimationFrame
             const setupClickTrackingDelayed = () => {
                 console.log(`🔍 setTimeout callback for click tracking executing...`);
                 const trackingStartTime = performance.now();
                 
-                // Final check before setting up tracking
                 if (animationSignal && animationSignal.aborted) {
                     console.log(`❌ Search was aborted, skipping click tracking`);
                     return;
                 }
                 try {
-                    if (performance.memory) {
-                        console.log(`📊 Memory before click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                    }
                     console.log('🚀 About to call setupClickTracking()...');
                     setupClickTracking();
                     const trackingTime = performance.now() - trackingStartTime;
                     console.log(`⏱️ Click tracking setup took ${trackingTime.toFixed(2)}ms`);
-                    if (performance.memory) {
-                        console.log(`📊 Memory after click tracking: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                    }
                     
                     console.log('⭐ About to call updateStarIcons()...');
-                    const updateStartTime = performance.now();
                     updateStarIcons();
-                    console.log(`⏱️ Star icon update took ${(performance.now() - updateStartTime).toFixed(2)}ms`);
-                    if (performance.memory) {
-                        console.log(`📊 Memory after star update: ${(performance.memory.usedJSHeapSize / 1048576).toFixed(2)}MB / ${(performance.memory.totalJSHeapSize / 1048576).toFixed(2)}MB`);
-                    }
                     console.log('✅ All click tracking setup completed successfully!');
                 } catch (error) {
                     console.error('❌ Error setting up click tracking:', error);
-                    console.error('Error stack:', error.stack);
-                    console.error('Error details:', {
-                        message: error.message,
-                        name: error.name,
-                        stack: error.stack
+                    const cards = resultsContainer.querySelectorAll('.professor-card');
+                    cards.forEach(card => {
+                        card.style.opacity = '1';
+                        card.style.transform = 'translateY(0) scale(1)';
                     });
-                    // Try to recover - at least show the cards even if tracking fails
-                    try {
-                        const cards = resultsContainer.querySelectorAll('.professor-card');
-                        cards.forEach(card => {
-                            card.style.opacity = '1';
-                            card.style.transform = 'translateY(0) scale(1)';
-                        });
-                    } catch (recoveryError) {
-                        console.error('❌ Error in recovery:', recoveryError);
-                    }
                 }
             };
             
-            if (isMobile) {
-                // On mobile, use simple setTimeout to avoid nested async issues
-                console.log('📱 Mobile detected - using simple setTimeout (no requestAnimationFrame)');
+            // Desktop: use requestAnimationFrame
+            requestAnimationFrame(() => {
                 setTimeout(setupClickTrackingDelayed, clickTrackingDelay);
-            } else {
-                // On desktop, use requestAnimationFrame for better performance
-                try {
-                    console.log('🖥️ Desktop detected - using requestAnimationFrame');
-                    requestAnimationFrame(() => {
-                        console.log('🎬 requestAnimationFrame callback for click tracking executing...');
-                        setTimeout(setupClickTrackingDelayed, clickTrackingDelay);
-                    });
-                } catch (rafError) {
-                    console.error('❌ Error in requestAnimationFrame for click tracking:', rafError);
-                    console.error('RAF error stack:', rafError.stack);
-                    // Fallback to simple setTimeout
-                    console.log('🔄 Falling back to simple setTimeout...');
-                    setTimeout(setupClickTrackingDelayed, clickTrackingDelay);
-                }
-            }
+            });
         }, 50);
     }, 150);
 }
@@ -1447,7 +1389,7 @@ function setupClickTracking() {
     }
     clickTrackingSetup = true;
     
-    // Detect mobile to optimize performance
+    // Detect mobile to optimize performance (use global detection)
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     
     // Track clicks on email links
@@ -1542,20 +1484,39 @@ function setupClickTracking() {
                         console.error('Error tracking click:', err);
                     });
                     
-                    // Toggle flip
+                    // Toggle flip (simplified on mobile - instant, no 3D transform)
                     const cardInner = card.querySelector('.card-inner');
                     if (cardInner) {
+                        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                         const isFlipped = cardInner.classList.contains('flipped');
                         
                         if (!isFlipped) {
-                            // Flipping to back - load stats (using placeholders for now)
-                            cardInner.classList.add('flipped');
+                            // Flipping to back - load stats
+                            if (isMobile) {
+                                // On mobile: instant flip, disable transition
+                                cardInner.style.transition = 'none';
+                                cardInner.classList.add('flipped');
+                                // Re-enable transition after a brief moment for future flips
+                                setTimeout(() => {
+                                    cardInner.style.transition = '';
+                                }, 100);
+                            } else {
+                                cardInner.classList.add('flipped');
+                            }
                             loadProfessorStats(card, professorName, departmentName).catch(err => {
                                 console.error('Error loading professor stats:', err);
                             });
                         } else {
                             // Flipping back to front
-                            cardInner.classList.remove('flipped');
+                            if (isMobile) {
+                                cardInner.style.transition = 'none';
+                                cardInner.classList.remove('flipped');
+                                setTimeout(() => {
+                                    cardInner.style.transition = '';
+                                }, 100);
+                            } else {
+                                cardInner.classList.remove('flipped');
+                            }
                         }
                     }
                 }
@@ -1597,21 +1558,22 @@ function setupClickTracking() {
         
         // If there are more cards, process next batch asynchronously
         if (processedCards < cards.length) {
-            const nextBatchDelay = isMobile ? 50 : 10;
+            // On mobile, process faster to reduce total time
+            const nextBatchDelay = isMobile ? 10 : 10;
             console.log(`⏳ Scheduling next batch in ${nextBatchDelay}ms... (will process cards ${processedCards} to ${Math.min(processedCards + batchSize, cards.length)})`);
-            // Use requestIdleCallback if available, otherwise setTimeout
-            if (window.requestIdleCallback) {
-                console.log(`  🔹 Using requestIdleCallback for next batch...`);
-                requestIdleCallback(() => {
-                    console.log(`  🎬 requestIdleCallback executing for batch ${processedCards}-${Math.min(processedCards + batchSize, cards.length)}...`);
-                    processCardBatch();
-                }, { timeout: 1000 });
-            } else {
+            // On mobile, use simple setTimeout for reliability
+            if (isMobile || !window.requestIdleCallback) {
                 console.log(`  🔹 Using setTimeout for next batch...`);
                 setTimeout(() => {
                     console.log(`  🎬 setTimeout executing for batch ${processedCards}-${Math.min(processedCards + batchSize, cards.length)}...`);
                     processCardBatch();
                 }, nextBatchDelay);
+            } else {
+                console.log(`  🔹 Using requestIdleCallback for next batch...`);
+                requestIdleCallback(() => {
+                    console.log(`  🎬 requestIdleCallback executing for batch ${processedCards}-${Math.min(processedCards + batchSize, cards.length)}...`);
+                    processCardBatch();
+                }, { timeout: 1000 });
             }
         } else {
             // All cards processed, now setup star icons
@@ -1745,13 +1707,14 @@ function setupStarIcons() {
         
         // If there are more containers, process next batch asynchronously
         if (processed < containers.length) {
-            const nextBatchDelay = isMobile ? 50 : 10;
+            // On mobile, process faster
+            const nextBatchDelay = isMobile ? 10 : 10;
             console.log(`⏳ Scheduling next star batch in ${nextBatchDelay}ms...`);
-            // Use requestIdleCallback if available, otherwise setTimeout
-            if (window.requestIdleCallback) {
-                requestIdleCallback(processStarBatch, { timeout: 1000 });
-            } else {
+            // On mobile, use simple setTimeout for reliability
+            if (isMobile || !window.requestIdleCallback) {
                 setTimeout(processStarBatch, nextBatchDelay);
+            } else {
+                requestIdleCallback(processStarBatch, { timeout: 1000 });
             }
         } else {
             const totalStarTime = performance.now() - starSetupStartTime;

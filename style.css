@@ -1543,8 +1543,24 @@ header h1 {
     60%, 100% { content: 'Loading...'; }
 }
 
-/* Responsive Design */
+/* Mobile optimizations - disable animations for performance */
 @media (max-width: 768px) {
+    /* Disable all animations and transitions on mobile to prevent crashes */
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0s !important;
+        animation-delay: 0s !important;
+        transition-duration: 0s !important;
+        transition-delay: 0s !important;
+    }
+    
+    /* Keep essential transitions for user feedback (very short) */
+    button:active,
+    a:active {
+        transition: opacity 0.1s !important;
+    }
+    
     .container {
         padding: 24px 16px;
     }
