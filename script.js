@@ -1097,20 +1097,48 @@ async function displayResults(query, professors, signal = null) {
     resultsContainer.style.transform = 'translateY(20px)';
     resultsContainer.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
     
+    // Store signal in closure for animation checks
+    const animationSignal = signal;
+    
     setTimeout(() => {
+        // Check if search was cancelled before updating DOM
+        if (animationSignal && animationSignal.aborted) {
+            return;
+        }
+        
+        // Reset click tracking flag when replacing content
+        // This allows setupClickTracking to run again for new content
+        clickTrackingSetup = false;
         resultsContainer.innerHTML = resultsHTML;
         
         // Trigger animations after a brief delay
         setTimeout(() => {
+            // Check again if search was cancelled
+            if (animationSignal && animationSignal.aborted) {
+                return;
+            }
+            
             resultsContainer.style.opacity = '1';
             resultsContainer.style.transform = 'translateY(0)';
             
             // Add animation classes to cards for staggered effect
+            // Limit animations to prevent memory issues on mobile
             const cards = resultsContainer.querySelectorAll('.professor-card');
+            const maxAnimatedCards = 50; // Limit to prevent memory issues
             cards.forEach((card, index) => {
+                if (index >= maxAnimatedCards) {
+                    // Skip animation for cards beyond limit to prevent crashes
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0) scale(1)';
+                    return;
+                }
                 card.style.opacity = '0';
                 card.style.transform = 'translateY(30px) scale(0.9)';
                 setTimeout(() => {
+                    // Check if search was cancelled before animating
+                    if (animationSignal && animationSignal.aborted) {
+                        return;
+                    }
                     card.style.transition = `opacity 0.5s ease ${index * 0.05}s, transform 0.5s ease ${index * 0.05}s`;
                     card.style.opacity = '1';
                     card.style.transform = 'translateY(0) scale(1)';
@@ -1119,6 +1147,10 @@ async function displayResults(query, professors, signal = null) {
             
             // Add click tracking to all clickable elements (with a small delay to ensure DOM is ready)
             setTimeout(() => {
+                // Final check before setting up tracking
+                if (animationSignal && animationSignal.aborted) {
+                    return;
+                }
                 setupClickTracking();
                 updateStarIcons();
             }, 100);
@@ -1127,7 +1159,17 @@ async function displayResults(query, professors, signal = null) {
 }
 
 // Track clicks on professor cards and links
+// Use a flag to prevent duplicate setup
+let clickTrackingSetup = false;
+
 function setupClickTracking() {
+    // Prevent duplicate setup - innerHTML replacement already removes old listeners
+    // But if called multiple times before DOM is ready, this prevents duplicates
+    if (clickTrackingSetup) {
+        return;
+    }
+    clickTrackingSetup = true;
+    
     // Track clicks on email links
     document.querySelectorAll('.email-link').forEach(link => {
         link.addEventListener('click', async (e) => {
