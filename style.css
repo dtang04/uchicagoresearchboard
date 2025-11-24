@@ -4,6 +4,20 @@
     box-sizing: border-box;
 }
 
+/* Global mobile touch improvements */
+button,
+a,
+[role="button"],
+.clickable {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:not(.search-button):not(.filter-btn):not(.login-button):not(.auth-submit-button):not(.google-button):not(.starred-tab):not(.auth-tab) {
+    min-height: 44px;
+    min-width: 44px;
+}
+
 :root {
     /* Sophisticated maroon and white palette */
     --primary-color: #800020;
@@ -113,6 +127,10 @@ header {
     transition: all 0.3s ease;
     box-shadow: var(--shadow-md);
     white-space: nowrap;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
 }
 
 .login-button:hover {
@@ -259,6 +277,10 @@ header h1 {
     overflow: hidden;
     transform: scale(1);
     letter-spacing: 0.02em;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    min-width: 44px;
 }
 
 .search-button::after {
@@ -340,6 +362,10 @@ header h1 {
     color: var(--primary-color);
     cursor: pointer;
     transition: all 0.3s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
 }
 
 .starred-tab:hover {
@@ -367,6 +393,10 @@ header h1 {
     font-weight: 500;
     position: relative;
     overflow: hidden;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
 }
 
 .filter-btn::before {
@@ -951,6 +981,9 @@ header h1 {
     perspective: 1000px;
     height: 100%;
     min-height: 280px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 }
 
 .professor-card:nth-child(1) { animation-delay: 0.1s; }
@@ -1049,8 +1082,8 @@ header h1 {
     position: absolute;
     top: 16px;
     right: 16px;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1061,6 +1094,9 @@ header h1 {
     backdrop-filter: blur(10px);
     transition: all 0.3s ease;
     box-shadow: var(--shadow);
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
 }
 
 .star-icon-container:hover {
@@ -1270,6 +1306,10 @@ header h1 {
     align-items: center;
     gap: 6px;
     position: relative;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    padding: 4px 0;
 }
 
 .lab-link::after {
@@ -1308,6 +1348,12 @@ header h1 {
     font-weight: 500;
     transition: all 0.2s ease;
     display: inline-block;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    padding: 8px 0;
+    display: inline-flex;
+    align-items: center;
 }
 
 .website-link:hover {
@@ -1341,6 +1387,10 @@ header h1 {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    padding: 4px 0;
 }
 
 .email-link:hover {
@@ -1519,6 +1569,8 @@ header h1 {
 
     .search-button {
         width: 100%;
+        padding: 16px 24px;
+        font-size: 1rem;
     }
 
     .quick-filters {
@@ -1528,6 +1580,12 @@ header h1 {
 
     .quick-filters::before {
         margin-bottom: 8px;
+    }
+
+    .filter-btn {
+        width: 100%;
+        padding: 14px 20px;
+        font-size: 0.95rem;
     }
 
     .professors-grid {
@@ -1550,6 +1608,18 @@ header h1 {
 
     .trending-labs-section {
         padding: 24px;
+    }
+
+    .star-icon-container {
+        width: 48px;
+        height: 48px;
+        top: 12px;
+        right: 12px;
+    }
+
+    .login-button {
+        padding: 14px 20px;
+        font-size: 0.9rem;
     }
 }
 
@@ -1742,6 +1812,10 @@ a, button, input, .filter-btn, .professor-card {
     cursor: pointer;
     transition: all 0.3s ease;
     margin-bottom: -2px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
 }
 
 .auth-tab:hover {
@@ -1802,6 +1876,10 @@ a, button, input, .filter-btn, .professor-card {
     transition: all 0.3s ease;
     box-shadow: var(--shadow-md);
     margin-bottom: 20px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
 }
 
 .auth-submit-button:hover {
@@ -1835,6 +1913,10 @@ a, button, input, .filter-btn, .professor-card {
 }
 
 .google-button {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
     width: 100%;
     padding: 12px;
     background: white;

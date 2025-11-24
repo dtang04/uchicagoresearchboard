@@ -1,38 +1,109 @@
-// DOM elements
-const searchInput = document.getElementById('departmentSearch');
-const searchButton = document.getElementById('searchButton');
-const resultsContainer = document.getElementById('resultsContainer');
-const filterButtons = document.querySelectorAll('.filter-btn');
+// DOM elements (will be initialized in DOMContentLoaded)
+let searchInput;
+let searchButton;
+let resultsContainer;
+let filterButtons;
 
 // Starred professors state
 let starredProfessors = new Set(); // Store as "name|department" keys
 let isViewingStarred = false;
 
+// Helper function to handle both click and touch events for mobile
+function addMobileFriendlyListener(element, handler) {
+    if (!element) return;
+    
+    let touchStartTime = 0;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchHandled = false;
+    
+    // Track touch start
+    element.addEventListener('touchstart', (e) => {
+        touchHandled = false;
+        touchStartTime = Date.now();
+        const touch = e.touches[0];
+        touchStartX = touch.clientX;
+        touchStartY = touch.clientY;
+    }, { passive: true });
+    
+    // Handle touch end
+    element.addEventListener('touchend', (e) => {
+        const touch = e.changedTouches[0];
+        const touchEndX = touch.clientX;
+        const touchEndY = touch.clientY;
+        const touchDuration = Date.now() - touchStartTime;
+        const touchDistance = Math.sqrt(
+            Math.pow(touchEndX - touchStartX, 2) + 
+            Math.pow(touchEndY - touchStartY, 2)
+        );
+        
+        // Only handle if it was a quick tap (not a scroll or long press)
+        if (touchDuration < 300 && touchDistance < 10) {
+            touchHandled = true;
+            e.preventDefault();
+            e.stopPropagation();
+            handler(e);
+        }
+    }, { passive: false });
+    
+    // Handle click events (for desktop and as fallback)
+    element.addEventListener('click', (e) => {
+        // If touch was handled, prevent the click (mobile browsers fire click after touch)
+        if (!touchHandled) {
+            handler(e);
+        }
+        touchHandled = false; // Reset for next interaction
+    });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    // Search button click handler
-    searchButton.addEventListener('click', handleSearch);
+    // Initialize DOM elements
+    searchInput = document.getElementById('departmentSearch');
+    searchButton = document.getElementById('searchButton');
+    resultsContainer = document.getElementById('resultsContainer');
+    filterButtons = document.querySelectorAll('.filter-btn');
+    
+    // Verify elements exist
+    if (!searchInput || !searchButton || !resultsContainer) {
+        console.error('Critical DOM elements not found!');
+        return;
+    }
+    
+    console.log(`Found ${filterButtons.length} filter buttons`);
+    
+    // Search button click handler (mobile-friendly)
+    if (searchButton) {
+        addMobileFriendlyListener(searchButton, handleSearch);
+    }
     
     // Enter key handler
-    searchInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            handleSearch();
-        }
-    });
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                handleSearch();
+            }
+        });
+    }
     
-    // Quick filter button handlers
-    filterButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const dept = btn.getAttribute('data-dept');
-            searchInput.value = dept;
-            handleSearch();
+    // Quick filter button handlers (mobile-friendly)
+    filterButtons.forEach((btn, index) => {
+        const dept = btn.getAttribute('data-dept');
+        console.log(`Setting up filter button ${index}: ${dept}`);
+        
+        addMobileFriendlyListener(btn, (e) => {
+            console.log(`Filter button clicked: ${dept}`);
+            if (searchInput) {
+                searchInput.value = dept;
+                handleSearch();
+            }
         });
     });
     
-    // Starred professors tab
+    // Starred professors tab (mobile-friendly)
     const starredTab = document.getElementById('starredTab');
     if (starredTab) {
-        starredTab.addEventListener('click', handleStarredTab);
+        addMobileFriendlyListener(starredTab, handleStarredTab);
     }
     
     // Listen for auth events
@@ -1042,8 +1113,8 @@ function setupClickTracking() {
     console.log(`🔍 Setting up click tracking for ${cards.length} cards`);
     
     cards.forEach((card, index) => {
-        // Handle card flip on click
-        card.addEventListener('click', async (e) => {
+        // Handle card flip on click (mobile-friendly)
+        const handleCardClick = async (e) => {
             // Don't flip if clicking on links or star icon
             const clickedLink = e.target.closest('a');
             const clickedStar = e.target.closest('.star-icon-container');
@@ -1054,26 +1125,28 @@ function setupClickTracking() {
             const professorName = card.getAttribute('data-professor');
             const departmentName = card.getAttribute('data-department');
             
-                if (professorName && departmentName) {
-                    // Track the click
-                    await trackClick(professorName, departmentName, 'card');
+            if (professorName && departmentName) {
+                // Track the click
+                await trackClick(professorName, departmentName, 'card');
+                
+                // Toggle flip
+                const cardInner = card.querySelector('.card-inner');
+                if (cardInner) {
+                    const isFlipped = cardInner.classList.contains('flipped');
                     
-                    // Toggle flip
-                    const cardInner = card.querySelector('.card-inner');
-                    if (cardInner) {
-                        const isFlipped = cardInner.classList.contains('flipped');
-                        
-                        if (!isFlipped) {
-                            // Flipping to back - load stats (using placeholders for now)
-                            cardInner.classList.add('flipped');
-                            loadProfessorStats(card, professorName, departmentName);
-                        } else {
-                            // Flipping back to front
-                            cardInner.classList.remove('flipped');
-                        }
+                    if (!isFlipped) {
+                        // Flipping to back - load stats (using placeholders for now)
+                        cardInner.classList.add('flipped');
+                        loadProfessorStats(card, professorName, departmentName);
+                    } else {
+                        // Flipping back to front
+                        cardInner.classList.remove('flipped');
                     }
                 }
-        });
+            }
+        };
+        
+        addMobileFriendlyListener(card, handleCardClick);
     });
     
     // Setup star icon handlers
@@ -1085,7 +1158,7 @@ function setupClickTracking() {
 // Setup star icon click handlers
 function setupStarIcons() {
     document.querySelectorAll('.star-icon-container').forEach(container => {
-        container.addEventListener('click', async (e) => {
+        const handleStarClick = async (e) => {
             e.stopPropagation(); // Prevent card flip
             
             if (!window.authService || !window.authService.isAuthenticated()) {
@@ -1139,7 +1212,9 @@ function setupStarIcons() {
             } catch (error) {
                 console.error('Error toggling star:', error);
             }
-        });
+        };
+        
+        addMobileFriendlyListener(container, handleStarClick);
     });
 }
 
