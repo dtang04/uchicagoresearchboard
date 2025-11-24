@@ -203,18 +203,26 @@ document.addEventListener('DOMContentLoaded', () => {
         
         addMobileFriendlyListener(btn, async (e) => {
             const filterClickStartTime = performance.now();
+            const clickId = Math.random().toString(36).substr(2, 9);
             try {
-                console.log(`🔘 Filter button clicked: ${dept} (at ${new Date().toISOString()})`);
+                console.log(`🔘 Filter button clicked: ${dept} (clickId: ${clickId}, at ${new Date().toISOString()})`);
+                console.log(`  📊 Current search state: isSearching=${isSearching}, searchInput.value="${searchInput?.value || 'N/A'}"`);
+                
                 if (!searchInput) {
                     console.error('❌ searchInput is not available');
                     return;
                 }
+                
+                const previousValue = searchInput.value;
                 searchInput.value = dept;
-                console.log(`🔍 Starting search for: ${dept}`);
+                console.log(`  📝 Set searchInput.value from "${previousValue}" to "${dept}"`);
+                console.log(`🔍 Starting search for: ${dept} (clickId: ${clickId})`);
+                
                 // Await handleSearch to catch any errors properly
                 await handleSearch();
                 const searchTime = performance.now() - filterClickStartTime;
-                console.log(`✅ Filter button search completed in ${searchTime.toFixed(2)}ms`);
+                console.log(`✅ Filter button search completed in ${searchTime.toFixed(2)}ms (clickId: ${clickId})`);
+                console.log(`  📊 After search: searchInput.value="${searchInput?.value || 'N/A'}", isSearching=${isSearching}`);
             } catch (error) {
                 const errorTime = performance.now() - filterClickStartTime;
                 console.error(`❌ Error in filter button handler after ${errorTime.toFixed(2)}ms:`, error);
@@ -266,17 +274,24 @@ let isSearching = false;
 let currentSearchController = null;
 
 async function handleSearch() {
+    const searchId = Math.random().toString(36).substr(2, 9);
+    console.log(`🔍 handleSearch() called (searchId: ${searchId}, isSearching: ${isSearching})`);
+    
     // Prevent multiple simultaneous searches
     if (isSearching) {
+        console.log(`⚠️ Search already in progress, skipping (searchId: ${searchId})`);
         return;
     }
     
     if (!searchInput) {
+        console.log(`❌ searchInput not available (searchId: ${searchId})`);
         return;
     }
     
     const query = searchInput.value.trim();
+    console.log(`  📝 Query: "${query}" (searchId: ${searchId})`);
     if (!query) {
+        console.log(`⚠️ Empty query, showing welcome message (searchId: ${searchId})`);
         showWelcomeMessage();
         return;
     }
@@ -309,6 +324,7 @@ async function handleSearch() {
             `;
         }
     } finally {
+        console.log(`🏁 handleSearch() finished (searchId: ${searchId})`);
         isSearching = false;
         currentSearchController = null;
     }
