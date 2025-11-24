@@ -155,14 +155,17 @@ function createTables() {
                                     // Ignore error if column already exists
                                     db.run(`ALTER TABLE professors ADD COLUMN is_translucent INTEGER DEFAULT 0`, (err5) => {
                                         // Ignore error if column already exists
-                                        // Create indexes
-                                        db.run(`CREATE INDEX IF NOT EXISTS idx_professors_department ON professors(department_id)`, () => {
-                                            db.run(`CREATE INDEX IF NOT EXISTS idx_views_professor ON professor_views(professor_id)`, () => {
-                                                db.run(`CREATE INDEX IF NOT EXISTS idx_clicks_professor ON professor_clicks(professor_id)`, () => {
-                                                    db.run(`CREATE INDEX IF NOT EXISTS idx_views_department ON department_views(department_id)`, () => {
-                                                        db.run(`CREATE INDEX IF NOT EXISTS idx_starred_user ON starred_professors(user_id)`, () => {
-                                                            db.run(`CREATE INDEX IF NOT EXISTS idx_starred_professor ON starred_professors(professor_id)`, () => {
-                                                                resolve();
+                                        db.run(`ALTER TABLE professors ADD COLUMN personal_website TEXT`, (err6) => {
+                                            // Ignore error if column already exists
+                                            // Create indexes
+                                            db.run(`CREATE INDEX IF NOT EXISTS idx_professors_department ON professors(department_id)`, () => {
+                                                db.run(`CREATE INDEX IF NOT EXISTS idx_views_professor ON professor_views(professor_id)`, () => {
+                                                    db.run(`CREATE INDEX IF NOT EXISTS idx_clicks_professor ON professor_clicks(professor_id)`, () => {
+                                                        db.run(`CREATE INDEX IF NOT EXISTS idx_views_department ON department_views(department_id)`, () => {
+                                                            db.run(`CREATE INDEX IF NOT EXISTS idx_starred_user ON starred_professors(user_id)`, () => {
+                                                                db.run(`CREATE INDEX IF NOT EXISTS idx_starred_professor ON starred_professors(professor_id)`, () => {
+                                                                    resolve();
+                                                                });
                                                             });
                                                         });
                                                     });
@@ -256,6 +259,7 @@ function getProfessorsByDepartment(departmentName) {
                         title: prof.title,
                         lab: prof.lab,
                         labWebsite: prof.lab_website,
+                        personalWebsite: prof.personal_website,
                         email: prof.email,
                         researchArea: prof.research_area,
                         numUndergradResearchers: prof.num_undergrad_researchers,
@@ -280,14 +284,15 @@ async function addProfessor(departmentName, professor) {
     return new Promise((resolve, reject) => {
         db.run(`
             INSERT INTO professors 
-            (department_id, name, title, lab, lab_website, email, research_area, num_undergrad_researchers, num_lab_members, num_published_papers, is_recruiting, is_translucent)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (department_id, name, title, lab, lab_website, personal_website, email, research_area, num_undergrad_researchers, num_lab_members, num_published_papers, is_recruiting, is_translucent)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             dept.id,
             professor.name,
             professor.title || null,
             professor.lab || null,
             professor.labWebsite || null,
+            professor.personalWebsite || null,
             professor.email || null,
             professor.researchArea || null,
             professor.numUndergradResearchers || null,
@@ -693,6 +698,7 @@ function getStarredProfessors(userId) {
                 p.title,
                 p.lab,
                 p.lab_website,
+                p.personal_website,
                 p.email,
                 p.research_area,
                 p.num_undergrad_researchers,
@@ -713,6 +719,7 @@ function getStarredProfessors(userId) {
                     title: prof.title,
                     lab: prof.lab,
                     labWebsite: prof.lab_website,
+                    personalWebsite: prof.personal_website,
                     email: prof.email,
                     researchArea: prof.research_area,
                     numUndergradResearchers: prof.num_undergrad_researchers,

@@ -1028,6 +1028,15 @@ function setupClickTracking() {
         });
     });
     
+    // Track clicks on personal website links
+    document.querySelectorAll('.website-link').forEach(link => {
+        link.addEventListener('click', async (e) => {
+            const professorName = link.getAttribute('data-professor');
+            const departmentName = link.getAttribute('data-department');
+            await trackClick(professorName, departmentName, 'personal-website');
+        });
+    });
+    
     // Track clicks on professor cards and handle flip
     const cards = document.querySelectorAll('.professor-card');
     console.log(`🔍 Setting up click tracking for ${cards.length} cards`);
@@ -1405,6 +1414,48 @@ function groupProfessorsByArea(professors) {
     return hasAreas ? grouped : null;
 }
 
+/**
+ * Extract lab name from URL or return the original string if it's not a URL
+ * For URLs like "airlab.cs.uchicago.edu", extracts "airlab"
+ * @param {string} labValue - The lab value which might be a URL or lab name
+ * @returns {string} - The extracted lab name or original value
+ */
+function extractLabNameFromUrl(labValue) {
+    if (!labValue || labValue.trim() === '') {
+        return labValue;
+    }
+    
+    const trimmed = labValue.trim();
+    
+    // Check if it looks like a URL (contains dots and common URL patterns)
+    // Patterns: "subdomain.domain.com", "http://...", "https://...", "www."
+    // Remove protocol if present
+    let urlWithoutProtocol = trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        urlWithoutProtocol = trimmed.replace(/^https?:\/\//, '');
+    }
+    
+    // Remove www. if present
+    if (urlWithoutProtocol.startsWith('www.')) {
+        urlWithoutProtocol = urlWithoutProtocol.substring(4);
+    }
+    
+    // Check if it contains dots (likely a domain/subdomain)
+    if (urlWithoutProtocol.includes('.')) {
+        // Extract the first part (subdomain) before the first dot
+        // For "airlab.cs.uchicago.edu", this would be "airlab"
+        const parts = urlWithoutProtocol.split('.');
+        if (parts.length > 0 && parts[0].length > 0) {
+            const subdomain = parts[0];
+            // Capitalize first letter for better display
+            return subdomain.charAt(0).toUpperCase() + subdomain.slice(1);
+        }
+    }
+    
+    // If it doesn't look like a URL, return as-is
+    return trimmed;
+}
+
 function createProfessorCard(professor, departmentName) {
     // Handle comma-separated departments (use first one for display)
     const displayDept = departmentName.includes(',') ? departmentName.split(',')[0].trim() : departmentName;
@@ -1418,7 +1469,8 @@ function createProfessorCard(professor, departmentName) {
     const groupLabel = isMathematics ? 'Research Group' : 'Research Lab';
     
     // Get lab/group name, or generate from last name if null/empty
-    let labName = professor.lab;
+    // First, extract lab name from URL if it's a URL
+    let labName = extractLabNameFromUrl(professor.lab);
     if (!labName || labName.trim() === '') {
         // Extract last name from professor name
         const nameParts = professor.name.trim().split(/\s+/);
@@ -1432,9 +1484,32 @@ function createProfessorCard(professor, departmentName) {
         labName = labName.replace(/lab$/i, groupType);
     }
     
-    const labLink = professor.labWebsite 
-        ? `<a href="${professor.labWebsite}" target="_blank" rel="noopener noreferrer" class="lab-link" data-click-type="lab-website" data-professor="${professor.name}" data-department="${displayDept}">${labName}</a>`
+    // Determine the lab website URL
+    // If labWebsite is set, use it; otherwise, if lab is a URL, use that
+    let labWebsiteUrl = professor.labWebsite;
+    if (!labWebsiteUrl && professor.lab) {
+        const trimmedLab = professor.lab.trim();
+        // Check if lab value is a URL
+        const urlPattern = /^(https?:\/\/)?(www\.)?([a-zA-Z0-9.-]+)/;
+        if (urlPattern.test(trimmedLab)) {
+            // If it doesn't start with http:// or https://, add https://
+            labWebsiteUrl = trimmedLab.startsWith('http://') || trimmedLab.startsWith('https://') 
+                ? trimmedLab 
+                : `https://${trimmedLab}`;
+        }
+    }
+    
+    const labLink = labWebsiteUrl
+        ? `<a href="${labWebsiteUrl}" target="_blank" rel="noopener noreferrer" class="lab-link" data-click-type="lab-website" data-professor="${professor.name}" data-department="${displayDept}">${labName}</a>`
         : `<span class="lab-name">${labName}</span>`;
+    
+    // Personal website section
+    const personalWebsiteSection = professor.personalWebsite && professor.personalWebsite.trim() !== ''
+        ? `<div class="website-section">
+            <div class="website-label">Personal Website</div>
+            <a href="${professor.personalWebsite}" target="_blank" rel="noopener noreferrer" class="website-link" data-click-type="personal-website" data-professor="${professor.name}" data-department="${displayDept}">Visit Website</a>
+        </div>`
+        : '';
     
     const emailSection = professor.email && professor.email.trim() !== ''
         ? `<div class="email-section">
@@ -1485,6 +1560,7 @@ function createProfessorCard(professor, departmentName) {
                         <div class="lab-label">${groupLabel}</div>
                         ${labLink}
                     </div>
+                    ${personalWebsiteSection}
                     ${emailSection}
                 </div>
                 <div class="card-back">
