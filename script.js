@@ -16,19 +16,24 @@ function addMobileFriendlyListener(element, handler) {
     let touchStartX = 0;
     let touchStartY = 0;
     let touchHandled = false;
+    let lastHandlerTime = 0;
     
     // Track touch start
     element.addEventListener('touchstart', (e) => {
         touchHandled = false;
         touchStartTime = Date.now();
         const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
+        if (touch) {
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+        }
     }, { passive: true });
     
     // Handle touch end
     element.addEventListener('touchend', (e) => {
-        const touch = e.changedTouches[0];
+        const touch = e.changedTouches && e.changedTouches[0];
+        if (!touch) return;
+        
         const touchEndX = touch.clientX;
         const touchEndY = touch.clientY;
         const touchDuration = Date.now() - touchStartTime;
@@ -38,19 +43,39 @@ function addMobileFriendlyListener(element, handler) {
         );
         
         // Only handle if it was a quick tap (not a scroll or long press)
-        if (touchDuration < 300 && touchDistance < 10) {
+        // Also prevent rapid-fire calls (debounce)
+        const now = Date.now();
+        if (touchDuration < 300 && touchDistance < 10 && (now - lastHandlerTime) > 300) {
             touchHandled = true;
+            lastHandlerTime = now;
             e.preventDefault();
             e.stopPropagation();
-            handler(e);
+            try {
+                handler(e);
+            } catch (error) {
+                console.error('Error in touch handler:', error);
+            }
         }
     }, { passive: false });
     
     // Handle click events (for desktop and as fallback)
     element.addEventListener('click', (e) => {
+        // Prevent rapid-fire calls (debounce)
+        const now = Date.now();
+        if ((now - lastHandlerTime) < 300) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+        }
+        
         // If touch was handled, prevent the click (mobile browsers fire click after touch)
         if (!touchHandled) {
-            handler(e);
+            lastHandlerTime = now;
+            try {
+                handler(e);
+            } catch (error) {
+                console.error('Error in click handler:', error);
+            }
         }
         touchHandled = false; // Reset for next interaction
     });
@@ -92,10 +117,25 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(`Setting up filter button ${index}: ${dept}`);
         
         addMobileFriendlyListener(btn, (e) => {
-            console.log(`Filter button clicked: ${dept}`);
-            if (searchInput) {
+            try {
+                console.log(`Filter button clicked: ${dept}`);
+                if (!searchInput) {
+                    console.error('searchInput is not available');
+                    return;
+                }
                 searchInput.value = dept;
                 handleSearch();
+            } catch (error) {
+                console.error('Error in filter button handler:', error);
+                // Prevent page crash by showing error instead
+                if (resultsContainer) {
+                    resultsContainer.innerHTML = `
+                        <div class="no-results">
+                            <h3>Error</h3>
+                            <p>An error occurred. Please try again.</p>
+                        </div>
+                    `;
+                }
             }
         });
     });
@@ -123,7 +163,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+// Prevent multiple simultaneous searches
+let isSearching = false;
+
 async function handleSearch() {
+    // Prevent multiple simultaneous searches
+    if (isSearching) {
+        console.log('Search already in progress, skipping...');
+        return;
+    }
+    
+    if (!searchInput) {
+        console.error('searchInput is not available');
+        return;
+    }
+    
     const query = searchInput.value.trim();
     
     if (!query) {
@@ -131,6 +185,7 @@ async function handleSearch() {
         return;
     }
     
+    isSearching = true;
     showLoading();
     
     const startTime = performance.now();
@@ -150,12 +205,16 @@ async function handleSearch() {
         console.log(`[Performance] Total time: ${totalTime.toFixed(2)}ms`);
     } catch (error) {
         console.error('Error in search:', error);
-        resultsContainer.innerHTML = `
-            <div class="no-results">
-                <h3>Error loading data</h3>
-                <p>Unable to connect to the backend server. Please make sure the server is running.</p>
-            </div>
-        `;
+        if (resultsContainer) {
+            resultsContainer.innerHTML = `
+                <div class="no-results">
+                    <h3>Error loading data</h3>
+                    <p>Unable to connect to the backend server. Please make sure the server is running.</p>
+                </div>
+            `;
+        }
+    } finally {
+        isSearching = false;
     }
 }
 
