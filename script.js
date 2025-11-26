@@ -1193,9 +1193,7 @@ async function displayResults(query, professors, signal = null) {
     const groupedByArea = groupProfessorsByArea(regularProfessors);
     
     // 1. Department Header
-    const headerTitle = isSingleDepartment && departmentName !== 'Search Results' 
-        ? `${departmentName} Department` 
-        : departmentName;
+    const headerTitle = departmentName;
     let resultsHTML = `
         <div class="results-header">
             <h2>
