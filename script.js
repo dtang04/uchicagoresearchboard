@@ -1781,6 +1781,39 @@ function setupStarIcons() {
                             starIcon.classList.remove('starred');
                             const key = `${professorName}|${departmentName}`;
                             starredProfessors.delete(key);
+                            
+                            // If viewing starred professors, refresh the view or remove the card
+                            if (isViewingStarred) {
+                                // Remove the card with a fade-out animation
+                                const card = container.closest('.professor-card');
+                                if (card) {
+                                    card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                                    card.style.opacity = '0';
+                                    card.style.transform = 'scale(0.9)';
+                                    setTimeout(() => {
+                                        card.remove();
+                                        // Update the count in the header
+                                        const remainingCards = resultsContainer.querySelectorAll('.professor-card');
+                                        const countElement = resultsContainer.querySelector('.results-count');
+                                        if (countElement) {
+                                            const count = remainingCards.length;
+                                            countElement.textContent = `${count} starred professor${count !== 1 ? 's' : ''}`;
+                                        }
+                                        // If no more starred professors, show empty state
+                                        if (remainingCards.length === 0) {
+                                            resultsContainer.innerHTML = `
+                                                <div class="no-results">
+                                                    <h3>No starred professors</h3>
+                                                    <p>You haven't starred any professors yet. Click the star icon on any professor card to add them to your favorites.</p>
+                                                </div>
+                                            `;
+                                        }
+                                    }, 300);
+                                } else {
+                                    // Fallback: refresh the entire view
+                                    await displayStarredProfessors();
+                                }
+                            }
                         }
                     } else {
                         // Star
