@@ -12,12 +12,18 @@
 <body>
     <div class="container">
         <header>
-            <div class="header-content">
-                <div>
-                    <h1>UChicago Research Internship Board</h1>
-                    <p class="subtitle">Find research opportunities across departments</p>
+            <nav class="main-nav">
+                <div class="nav-brand">
+                    <h2>Univ. of Chicago Research Internship Board</h2>
                 </div>
-                <button type="button" id="loginButton" class="login-button">Login</button>
+                <div class="nav-links">
+                    <button type="button" id="aboutButton" class="nav-link">About</button>
+                    <button type="button" id="loginButton" class="login-button">Login</button>
+                </div>
+            </nav>
+            <div class="header-content">
+                <h1>UChicago Research Internship Board</h1>
+                <p class="subtitle">Find research opportunities across departments</p>
             </div>
         </header>
 
@@ -53,6 +59,17 @@
         <footer class="site-footer">
             <p>&copy; Copyright Minimal 2025</p>
         </footer>
+    </div>
+
+    <!-- About Modal -->
+    <div id="aboutModal" class="about-modal" style="display: none;">
+        <div class="about-modal-content">
+            <span class="about-modal-close">&times;</span>
+            <h2>About UChicago Research Board</h2>
+            <div class="about-content">
+                <p>UChicago Research Board connects students with professors on research and other academic opportunities. While we try our best to ensure that the statistics provided are accurate and updated, there may be small discrepencies between actual and reported data.</p>
+            </div>
+        </div>
     </div>
 
     <!-- Login/Signup Modal -->

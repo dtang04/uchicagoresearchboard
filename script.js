@@ -360,7 +360,69 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.authService && window.authService.isAuthenticated()) {
         loadStarredProfessors();
     }
+    
+    // Setup About Modal
+    setupAboutModal();
+    
+    // Setup nav brand click to scroll to top
+    const navBrand = document.querySelector('.nav-brand h2');
+    if (navBrand) {
+        navBrand.addEventListener('click', () => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            // Clear search if needed
+            if (searchInput && resultsContainer) {
+                searchInput.value = '';
+                showWelcomeMessage();
+            }
+        });
+    }
 });
+
+// Setup About Modal
+function setupAboutModal() {
+    const modal = document.getElementById('aboutModal');
+    const aboutButton = document.getElementById('aboutButton');
+    const closeButton = document.querySelector('.about-modal-close');
+    
+    if (!modal || !aboutButton) {
+        console.warn('About modal elements not found');
+        return;
+    }
+    
+    // Open modal
+    if (aboutButton) {
+        aboutButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            modal.style.display = 'flex';
+            // Prevent body scroll when modal is open
+            document.body.style.overflow = 'hidden';
+        });
+    }
+    
+    // Close modal
+    if (closeButton) {
+        closeButton.addEventListener('click', () => {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        });
+    }
+    
+    // Close modal when clicking outside
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    });
+    
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    });
+}
 
 // Prevent multiple simultaneous searches
 let isSearching = false;

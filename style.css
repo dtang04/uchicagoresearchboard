@@ -98,21 +98,114 @@ body {
 header {
     text-align: center;
     margin-bottom: 48px;
-    padding: 48px 20px 32px;
+    padding: 0 20px 32px;
     position: relative;
     animation: slideDownFade 0.8s ease-out;
 }
 
-.header-content {
+/* Main Navigation */
+.main-nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
     max-width: 1400px;
-    margin: 0 auto;
+    margin: 0 auto 32px;
+    padding: 24px 0;
+    border-bottom: 2px solid var(--border-light);
+    position: relative;
 }
 
-.header-content > div {
-    flex: 1;
+.main-nav::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 100px;
+    height: 2px;
+    background: var(--gradient-primary);
+    border-radius: 1px;
+}
+
+.nav-brand h2 {
+    font-size: clamp(1.25rem, 3vw, 1.5rem);
+    font-weight: 700;
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.nav-brand h2:hover {
+    transform: translateX(2px);
+    filter: brightness(1.1);
+}
+
+.nav-links {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+}
+
+.nav-link {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+    user-select: none;
+    font-family: inherit;
+}
+
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%) scaleX(0);
+    width: 80%;
+    height: 2px;
+    background: var(--gradient-primary);
+    border-radius: 1px;
+    transition: transform 0.3s ease;
+}
+
+.nav-link:hover {
+    color: var(--primary-color);
+}
+
+.nav-link:hover::after {
+    transform: translateX(-50%) scaleX(1);
+}
+
+.header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.header-content h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 800;
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    position: relative;
 }
 
 .login-button {
@@ -150,36 +243,15 @@ header {
     }
 }
 
-header::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100px;
-    height: 4px;
-    background: var(--gradient-primary);
-    border-radius: 2px;
-    box-shadow: var(--shadow-glow);
-}
+/* Removed old header::before - now using .main-nav::after */
 
-header h1 {
-    font-size: clamp(2rem, 5vw, 3rem);
-    font-weight: 800;
-    background: var(--gradient-text);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 12px;
-    letter-spacing: -0.03em;
-    line-height: 1.2;
-    position: relative;
-}
+/* Removed old header h1 styles - now using .nav-brand h1 */
 
 .subtitle {
     font-size: clamp(1rem, 2vw, 1.25rem);
     color: var(--text-secondary);
     font-weight: 400;
+    margin: 0;
     margin-top: 8px;
 }
 
@@ -1968,18 +2040,136 @@ a, button, input, .filter-btn, .professor-card {
     border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
+/* About Modal */
+.about-modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.about-modal-content {
+    background: var(--card-background);
+    border-radius: 24px;
+    padding: 48px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    animation: slideUpFade 0.4s ease;
+    border: 1px solid var(--border-color);
+}
+
+.about-modal-close {
+    position: absolute;
+    top: 24px;
+    right: 24px;
+    font-size: 32px;
+    font-weight: bold;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    line-height: 1;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+}
+
+.about-modal-close:hover {
+    color: var(--primary-color);
+    background: var(--background-light);
+    transform: rotate(90deg);
+}
+
+.about-modal-content h2 {
+    font-size: clamp(1.75rem, 4vw, 2.25rem);
+    font-weight: 800;
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 32px;
+    margin-right: 48px;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+}
+
+.about-content {
+    color: var(--text-secondary);
+    line-height: 1.8;
+    font-size: 1.0625rem;
+}
+
+.about-content p {
+    margin-bottom: 16px;
+}
+
+.about-content p:last-child {
+    margin-bottom: 0;
+}
+
 @media (max-width: 768px) {
-    .header-content {
+    .main-nav {
         flex-direction: column;
         gap: 20px;
+        padding: 20px 0;
+        align-items: flex-start;
+    }
+
+    .nav-links {
+        width: 100%;
+        justify-content: space-between;
+        gap: 16px;
+    }
+
+    .nav-link {
+        padding: 10px 16px;
     }
     
     .login-button {
-        width: 100%;
-        max-width: 200px;
+        flex: 1;
+        max-width: none;
+    }
+
+    .header-content {
+        margin-top: 0;
     }
     
     .auth-modal-content {
         padding: 32px 24px;
+    }
+
+    .about-modal-content {
+        padding: 36px 24px;
+        max-height: 90vh;
+    }
+
+    .about-modal-content h2 {
+        margin-right: 32px;
+        font-size: 1.75rem;
+    }
+
+    .about-modal-close {
+        top: 16px;
+        right: 16px;
+        font-size: 28px;
+        width: 36px;
+        height: 36px;
     }
 }
