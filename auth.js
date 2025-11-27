@@ -78,6 +78,17 @@ function setupAuthModal() {
     
     // Open modal
     loginButton.addEventListener('click', () => {
+        // Clear any errors when opening modal
+        const loginError = document.getElementById('loginError');
+        const signupError = document.getElementById('signupError');
+        if (loginError) {
+            loginError.textContent = '';
+            loginError.style.display = 'none';
+        }
+        if (signupError) {
+            signupError.textContent = '';
+            signupError.style.display = 'none';
+        }
         modal.style.display = 'flex';
     });
     
@@ -99,6 +110,18 @@ function setupAuthModal() {
             authTabs.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             
+            // Clear errors when switching tabs
+            const loginError = document.getElementById('loginError');
+            const signupError = document.getElementById('signupError');
+            if (loginError) {
+                loginError.textContent = '';
+                loginError.style.display = 'none';
+            }
+            if (signupError) {
+                signupError.textContent = '';
+                signupError.style.display = 'none';
+            }
+            
             if (tabName === 'login') {
                 loginForm.style.display = 'block';
                 signupForm.style.display = 'none';
@@ -116,6 +139,7 @@ function setupAuthModal() {
         const errorDiv = document.getElementById('loginError');
         
         errorDiv.textContent = '';
+        errorDiv.style.display = 'none';
         
         try {
             const response = await fetch(`${getApiBaseUrl()}/auth/login`, {
@@ -137,9 +161,11 @@ function setupAuthModal() {
                 window.dispatchEvent(new CustomEvent('userLoggedIn'));
             } else {
                 errorDiv.textContent = data.error || 'Login failed';
+                errorDiv.style.display = 'block';
             }
         } catch (error) {
             errorDiv.textContent = 'Network error. Please try again.';
+            errorDiv.style.display = 'block';
         }
     });
     
@@ -151,6 +177,7 @@ function setupAuthModal() {
         const errorDiv = document.getElementById('signupError');
         
         errorDiv.textContent = '';
+        errorDiv.style.display = 'none';
         
         try {
             const response = await fetch(`${getApiBaseUrl()}/auth/signup`, {
@@ -171,9 +198,11 @@ function setupAuthModal() {
                 window.dispatchEvent(new CustomEvent('userLoggedIn'));
             } else {
                 errorDiv.textContent = data.error || 'Signup failed';
+                errorDiv.style.display = 'block';
             }
         } catch (error) {
             errorDiv.textContent = 'Network error. Please try again.';
+            errorDiv.style.display = 'block';
         }
     });
     

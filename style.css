@@ -2032,12 +2032,16 @@ a, button, input, .filter-btn, .professor-card {
     font-size: 0.875rem;
     margin-top: 12px;
     text-align: center;
-    min-height: 20px;
-    display: block;
     padding: 8px;
     background: rgba(220, 38, 38, 0.1);
     border-radius: 8px;
     border: 1px solid rgba(220, 38, 38, 0.2);
+    display: none; /* Hidden by default */
+    min-height: 0;
+}
+
+.auth-error:not(:empty) {
+    display: block; /* Only show when there's content */
 }
 
 /* About Modal */
