@@ -1364,8 +1364,10 @@ header {
 
 .lab-name {
     font-size: 1rem;
-    color: var(--text-primary);
+    color: var(--text-secondary);
     font-weight: 500;
+    cursor: default;
+    text-decoration: none;
 }
 
 .lab-link {

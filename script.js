@@ -2280,20 +2280,9 @@ function createProfessorCard(professor, departmentName) {
         labName = labName.replace(/lab$/i, groupType);
     }
     
-    // Determine the lab website URL
-    // If labWebsite is set, use it; otherwise, if lab is a URL, use that
-    let labWebsiteUrl = professor.labWebsite;
-    if (!labWebsiteUrl && professor.lab) {
-        const trimmedLab = professor.lab.trim();
-        // Check if lab value is a URL
-        const urlPattern = /^(https?:\/\/)?(www\.)?([a-zA-Z0-9.-]+)/;
-        if (urlPattern.test(trimmedLab)) {
-            // If it doesn't start with http:// or https://, add https://
-            labWebsiteUrl = trimmedLab.startsWith('http://') || trimmedLab.startsWith('https://') 
-                ? trimmedLab 
-                : `https://${trimmedLab}`;
-        }
-    }
+    // Determine the lab website URL - only use explicit labWebsite field from database
+    // Professors without labWebsite will show lab name as grey text (no link)
+    let labWebsiteUrl = professor.labWebsite || null;
     
     const labLink = labWebsiteUrl
         ? `<a href="${labWebsiteUrl}" target="_blank" rel="noopener noreferrer" class="lab-link" data-click-type="lab-website" data-professor="${professor.name}" data-department="${displayDept}">${labName}</a>`
