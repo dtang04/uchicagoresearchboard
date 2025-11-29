@@ -295,9 +295,9 @@ async function addProfessor(departmentName, professor) {
             professor.personalWebsite || null,
             professor.email || null,
             professor.researchArea || null,
-            professor.numUndergradResearchers || null,
-            professor.numLabMembers || null,
-            professor.numPublishedPapers || null,
+            professor.numUndergradResearchers !== undefined && professor.numUndergradResearchers !== null ? professor.numUndergradResearchers : null,
+            professor.numLabMembers !== undefined && professor.numLabMembers !== null ? professor.numLabMembers : null,
+            professor.numPublishedPapers !== undefined && professor.numPublishedPapers !== null ? professor.numPublishedPapers : null,
             professor.isRecruiting ? 1 : 0,
             professor.isTranslucent ? 1 : 0
         ], function(err) {
